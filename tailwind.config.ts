@@ -57,6 +57,18 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+        },
+        "mode-id": "hsl(var(--mode-id))",
+        "mode-name": "hsl(var(--mode-name))",
+        "status-online": "hsl(var(--status-online))",
+        "status-offline": "hsl(var(--status-offline))",
       },
       borderRadius: {
         lg: "var(--radius)",

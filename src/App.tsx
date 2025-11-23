@@ -2,8 +2,19 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider } from "@/hooks/useAuth";
+import { SecurityProvider } from "@/hooks/usePrivacyMode";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { AppShell } from "@/components/layout/AppShell";
+
+// Auth Pages
+import LoginPage from "./pages/Auth/LoginPage";
+import RegisterPage from "./pages/Auth/RegisterPage";
+import ForgotPasswordPage from "./pages/Auth/ForgotPasswordPage";
+
+// App Pages
+import DashboardPage from "./pages/Dashboard/DashboardPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -14,11 +25,86 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <SecurityProvider>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/auth/login" element={<LoginPage />} />
+              <Route path="/auth/register" element={<RegisterPage />} />
+              <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+
+              {/* Protected routes */}
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <AppShell>
+                      <DashboardPage />
+                    </AppShell>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Placeholder routes - to be implemented */}
+              <Route
+                path="/patients"
+                element={
+                  <ProtectedRoute>
+                    <AppShell>
+                      <div className="text-center p-8">
+                        <h1 className="text-2xl font-bold mb-4">Módulo de Pacientes</h1>
+                        <p className="text-muted-foreground">Em breve...</p>
+                      </div>
+                    </AppShell>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/sessions"
+                element={
+                  <ProtectedRoute>
+                    <AppShell>
+                      <div className="text-center p-8">
+                        <h1 className="text-2xl font-bold mb-4">Módulo de Sessões</h1>
+                        <p className="text-muted-foreground">Em breve...</p>
+                      </div>
+                    </AppShell>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/ai-assistant"
+                element={
+                  <ProtectedRoute>
+                    <AppShell>
+                      <div className="text-center p-8">
+                        <h1 className="text-2xl font-bold mb-4">Assistente IA</h1>
+                        <p className="text-muted-foreground">Em breve...</p>
+                      </div>
+                    </AppShell>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <AppShell>
+                      <div className="text-center p-8">
+                        <h1 className="text-2xl font-bold mb-4">Configurações</h1>
+                        <p className="text-muted-foreground">Em breve...</p>
+                      </div>
+                    </AppShell>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Redirects */}
+              <Route path="/" element={<Navigate to="/auth/login" replace />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </SecurityProvider>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
