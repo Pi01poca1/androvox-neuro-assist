@@ -5,7 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Brain, Loader2 } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Brain, Loader2, UserRound, Briefcase } from 'lucide-react';
+import type { AppRole } from '@/types/roles';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -13,6 +15,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [clinicName, setClinicName] = useState('');
+  const [role, setRole] = useState<AppRole>('profissional');
   const [loading, setLoading] = useState(false);
   const { signUp, user } = useAuth();
   const navigate = useNavigate();
@@ -37,7 +40,7 @@ export default function RegisterPage() {
     }
 
     setLoading(true);
-    const { error } = await signUp(email, password, fullName, clinicName);
+    const { error } = await signUp(email, password, fullName, role, clinicName);
     
     if (!error) {
       navigate('/auth/login');
@@ -60,6 +63,32 @@ export default function RegisterPage() {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            <div className="space-y-3">
+              <Label>Tipo de Acesso</Label>
+              <RadioGroup value={role} onValueChange={(v) => setRole(v as AppRole)}>
+                <div className="flex items-center space-x-3 rounded-lg border border-border p-4 hover:bg-accent/50 cursor-pointer">
+                  <RadioGroupItem value="profissional" id="profissional" />
+                  <Label htmlFor="profissional" className="flex items-center gap-3 cursor-pointer flex-1">
+                    <Briefcase className="h-5 w-5 text-primary" />
+                    <div>
+                      <div className="font-semibold">Profissional</div>
+                      <div className="text-xs text-muted-foreground">Acesso completo ao sistema</div>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-3 rounded-lg border border-border p-4 hover:bg-accent/50 cursor-pointer">
+                  <RadioGroupItem value="secretario" id="secretario" />
+                  <Label htmlFor="secretario" className="flex items-center gap-3 cursor-pointer flex-1">
+                    <UserRound className="h-5 w-5 text-primary" />
+                    <div>
+                      <div className="font-semibold">Secretário</div>
+                      <div className="text-xs text-muted-foreground">Acesso apenas a cadastro e agenda</div>
+                    </div>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+            
             <div className="space-y-2">
               <Label htmlFor="fullName">Nome Completo</Label>
               <Input

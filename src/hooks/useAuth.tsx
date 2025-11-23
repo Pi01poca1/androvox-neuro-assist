@@ -2,6 +2,7 @@ import { useState, useEffect, createContext, useContext, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import type { UserProfile, AuthContextType } from '@/types/auth';
+import type { AppRole } from '@/types/roles';
 import { useToast } from '@/hooks/use-toast';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -10,6 +11,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [userRole, setUserRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -20,21 +22,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
-        // Fetch profile when user signs in
+        // Fetch profile and role when user signs in
         if (currentSession?.user && event === 'SIGNED_IN') {
           setTimeout(async () => {
-            const { data: profileData } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', currentSession.user.id)
-              .single();
+            const [profileResult, roleResult] = await Promise.all([
+              supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', currentSession.user.id)
+                .single(),
+              supabase
+                .from('user_roles')
+                .select('role')
+                .eq('user_id', currentSession.user.id)
+                .single()
+            ]);
             
-            if (profileData) {
-              setProfile(profileData as UserProfile);
+            if (profileResult.data) {
+              setProfile(profileResult.data as UserProfile);
+            }
+            if (roleResult.data) {
+              setUserRole(roleResult.data.role as AppRole);
             }
           }, 0);
         } else if (event === 'SIGNED_OUT') {
           setProfile(null);
+          setUserRole(null);
         }
       }
     );
@@ -45,17 +58,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(currentSession?.user ?? null);
       
       if (currentSession?.user) {
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', currentSession.user.id)
-          .single()
-          .then(({ data: profileData }) => {
-            if (profileData) {
-              setProfile(profileData as UserProfile);
-            }
-            setLoading(false);
-          });
+        Promise.all([
+          supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', currentSession.user.id)
+            .single(),
+          supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', currentSession.user.id)
+            .single()
+        ]).then(([profileResult, roleResult]) => {
+          if (profileResult.data) {
+            setProfile(profileResult.data as UserProfile);
+          }
+          if (roleResult.data) {
+            setUserRole(roleResult.data.role as AppRole);
+          }
+          setLoading(false);
+        });
       } else {
         setLoading(false);
       }
@@ -92,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, password: string, fullName: string, clinicName?: string) => {
+  const signUp = async (email: string, password: string, fullName: string, role: AppRole, clinicName?: string) => {
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -101,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           emailRedirectTo: `${window.location.origin}/`,
           data: {
             full_name: fullName,
+            role: role,
             clinic_name: clinicName || 'Minha Clínica',
           },
         },
@@ -171,6 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     session,
     profile,
+    userRole,
     loading,
     signIn,
     signUp,

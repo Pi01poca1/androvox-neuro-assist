@@ -6,7 +6,9 @@ import {
   Settings,
   ChevronRight,
 } from 'lucide-react';
+import { useMemo } from 'react';
 import { NavLink } from '@/components/NavLink';
+import { usePermissions } from '@/hooks/usePermissions';
 import {
   Sidebar as SidebarUI,
   SidebarContent,
@@ -19,15 +21,29 @@ import {
   SidebarHeader,
 } from '@/components/ui/sidebar';
 
-const menuItems = [
-  { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
-  { title: 'Pacientes', url: '/patients', icon: Users },
-  { title: 'Sessões', url: '/sessions', icon: FileText },
-  { title: 'Assistente IA', url: '/ai-assistant', icon: Brain },
-  { title: 'Configurações', url: '/settings', icon: Settings },
-];
-
 export function Sidebar() {
+  const permissions = usePermissions();
+  
+  const menuItems = useMemo(() => {
+    const items = [
+      { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
+      { title: 'Pacientes', url: '/patients', icon: Users },
+    ];
+    
+    if (permissions.canViewSessions) {
+      items.push({ title: 'Sessões', url: '/sessions', icon: FileText });
+    }
+    
+    if (permissions.canUseAI) {
+      items.push({ title: 'Assistente IA', url: '/ai-assistant', icon: Brain });
+    }
+    
+    if (permissions.canAccessSettings) {
+      items.push({ title: 'Configurações', url: '/settings', icon: Settings });
+    }
+    
+    return items;
+  }, [permissions]);
   return (
     <SidebarUI className="border-r border-border">
       <SidebarHeader className="border-b border-border p-4">
