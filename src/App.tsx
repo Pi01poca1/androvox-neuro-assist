@@ -15,6 +15,7 @@ import ForgotPasswordPage from "./pages/Auth/ForgotPasswordPage";
 
 // App Pages
 import DashboardPage from "./pages/Dashboard/DashboardPage";
+import PatientsPage from "./pages/Patients/PatientsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -45,16 +46,13 @@ const App = () => (
                 }
               />
 
-              {/* Placeholder routes - to be implemented */}
+              {/* Patient routes */}
               <Route
                 path="/patients"
                 element={
                   <ProtectedRoute>
                     <AppShell>
-                      <div className="text-center p-8">
-                        <h1 className="text-2xl font-bold mb-4">Módulo de Pacientes</h1>
-                        <p className="text-muted-foreground">Em breve...</p>
-                      </div>
+                      <PatientsPage />
                     </AppShell>
                   </ProtectedRoute>
                 }
