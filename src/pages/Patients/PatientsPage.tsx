@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PatientFormDialog } from '@/components/patients/PatientFormDialog';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function PatientsPage() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const { profile } = useAuth();
   const { privacyMode, usbStatus, isOnline } = usePrivacyMode();
   const { toast } = useToast();
@@ -65,7 +67,7 @@ export default function PatientsPage() {
             Gerencie o cadastro de pacientes da clínica
           </p>
         </div>
-        <Button>
+        <Button onClick={() => setIsFormDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Novo Paciente
         </Button>
@@ -185,6 +187,12 @@ export default function PatientsPage() {
           </TableBody>
         </Table>
       </Card>
+
+      {/* Dialog de Cadastro */}
+      <PatientFormDialog 
+        open={isFormDialogOpen} 
+        onOpenChange={setIsFormDialogOpen} 
+      />
     </div>
   );
 }
