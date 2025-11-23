@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PatientFormDialog } from '@/components/patients/PatientFormDialog';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
@@ -15,6 +16,7 @@ import { Search, Plus, UserCircle, Shield, ShieldAlert } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function PatientsPage() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const { profile } = useAuth();
@@ -168,7 +170,11 @@ export default function PatientsPage() {
                     {new Date(patient.created_at).toLocaleDateString('pt-BR')}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => navigate(`/patients/${patient.id}`)}
+                    >
                       Ver Detalhes
                     </Button>
                   </TableCell>
