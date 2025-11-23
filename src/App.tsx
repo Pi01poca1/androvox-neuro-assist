@@ -16,6 +16,7 @@ import ForgotPasswordPage from "./pages/Auth/ForgotPasswordPage";
 // App Pages
 import DashboardPage from "./pages/Dashboard/DashboardPage";
 import PatientsPage from "./pages/Patients/PatientsPage";
+import PatientDetailsPage from "./pages/Patients/PatientDetailsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -53,6 +54,16 @@ const App = () => (
                   <ProtectedRoute>
                     <AppShell>
                       <PatientsPage />
+                    </AppShell>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/patients/:id"
+                element={
+                  <ProtectedRoute>
+                    <AppShell>
+                      <PatientDetailsPage />
                     </AppShell>
                   </ProtectedRoute>
                 }
