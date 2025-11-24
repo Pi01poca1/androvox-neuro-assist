@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { OfflineSyncIndicator } from '@/components/offline/OfflineSyncIndicator';
+import { InstallPWA } from '@/components/offline/InstallPWA';
 
 export default function SettingsPage() {
   const { privacyMode, usbStatus, isOnline, setPrivacyMode, checkUsbKey } = usePrivacyMode();
@@ -53,9 +55,12 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-3xl font-bold text-foreground">Configurações</h1>
         <p className="text-muted-foreground mt-2">
-          Gerencie as configurações de segurança e privacidade do sistema
+          Gerencie as configurações de segurança, privacidade e sincronização do sistema
         </p>
       </div>
+
+      {/* Install PWA Banner */}
+      <InstallPWA />
 
       {/* Privacy Mode Settings */}
       <Card>
@@ -236,6 +241,9 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Offline Sync Card */}
+      <OfflineSyncIndicator />
     </div>
   );
 }
