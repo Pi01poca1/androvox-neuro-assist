@@ -19,6 +19,7 @@ import PatientsPage from "./pages/Patients/PatientsPage";
 import PatientDetailsPage from "./pages/Patients/PatientDetailsPage";
 import SessionsPage from "./pages/Sessions/SessionsPage";
 import SessionDetailPage from "./pages/Sessions/SessionDetailPage";
+import CalendarPage from "./pages/Calendar/CalendarPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -86,6 +87,16 @@ const App = () => (
                   <ProtectedRoute>
                     <AppShell>
                       <SessionDetailPage />
+                    </AppShell>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/calendar"
+                element={
+                  <ProtectedRoute>
+                    <AppShell>
+                      <CalendarPage />
                     </AppShell>
                   </ProtectedRoute>
                 }

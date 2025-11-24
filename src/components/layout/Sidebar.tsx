@@ -5,6 +5,7 @@ import {
   Brain, 
   Settings,
   ChevronRight,
+  Calendar,
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { NavLink } from '@/components/NavLink';
@@ -32,6 +33,7 @@ export function Sidebar() {
     
     if (permissions.canViewSessions) {
       items.push({ title: 'Sessões', url: '/sessions', icon: FileText });
+      items.push({ title: 'Calendário', url: '/calendar', icon: Calendar });
     }
     
     if (permissions.canUseAI) {
