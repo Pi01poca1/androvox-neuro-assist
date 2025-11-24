@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { usePermissions } from '@/hooks/usePermissions';
 import { usePrivacyMode } from '@/hooks/usePrivacyMode';
@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Calendar, FileText, Plus, User, Pencil, Filter, X } from 'lucide-react';
+import { Calendar, FileText, Plus, User, Pencil, Filter, X, Trash2 } from 'lucide-react';
 import { SessionFormDialog } from '@/components/sessions/SessionFormDialog';
 import { SessionEditDialog } from '@/components/sessions/SessionEditDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,18 +15,32 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import type { Session } from '@/types/session';
 import type { Patient } from '@/types/patient';
 
 export default function SessionsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
+  const [deletingSession, setDeletingSession] = useState<Session | null>(null);
   const [selectedPatient, setSelectedPatient] = useState<string>('all');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [selectedMode, setSelectedMode] = useState<Session['mode'] | 'all'>('all');
-  const { canViewSessions, canCreateSessions } = usePermissions();
+  const { canViewSessions, canCreateSessions, canDeleteSessions } = usePermissions();
   const { showNames } = usePrivacyMode();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: patients } = useQuery({
     queryKey: ['patients'],
@@ -84,6 +98,32 @@ export default function SessionsPage() {
       return data as Session[];
     },
     enabled: canViewSessions,
+  });
+
+  const deleteSessionMutation = useMutation({
+    mutationFn: async (sessionId: string) => {
+      const { error } = await supabase
+        .from('sessions')
+        .delete()
+        .eq('id', sessionId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      toast({
+        title: 'Sessão excluída',
+        description: 'A sessão foi excluída com sucesso.',
+      });
+      setDeletingSession(null);
+    },
+    onError: (error) => {
+      toast({
+        title: 'Erro ao excluir sessão',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
   });
 
   const clearFilters = () => {
@@ -325,15 +365,26 @@ export default function SessionsPage() {
                         : session.patients?.public_id}
                     </CardDescription>
                   </div>
-                  {canCreateSessions && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setEditingSession(session)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  )}
+                  <div className="flex gap-1">
+                    {canCreateSessions && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditingSession(session)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canDeleteSessions && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDeletingSession(session)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -408,6 +459,36 @@ export default function SessionsPage() {
           setEditingSession(null);
         }}
       />
+
+      <AlertDialog open={!!deletingSession} onOpenChange={(open) => !open && setDeletingSession(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir esta sessão? Esta ação não pode ser desfeita.
+              {deletingSession && (
+                <div className="mt-2 text-sm">
+                  <strong>Sessão:</strong> {new Date(deletingSession.session_date).toLocaleDateString('pt-BR')}
+                  <br />
+                  <strong>Paciente:</strong>{' '}
+                  {showNames && deletingSession.patients?.full_name
+                    ? deletingSession.patients.full_name
+                    : deletingSession.patients?.public_id}
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingSession && deleteSessionMutation.mutate(deletingSession.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir Sessão
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
