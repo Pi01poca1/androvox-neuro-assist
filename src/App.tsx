@@ -18,6 +18,7 @@ import DashboardPage from "./pages/Dashboard/DashboardPage";
 import PatientsPage from "./pages/Patients/PatientsPage";
 import PatientDetailsPage from "./pages/Patients/PatientDetailsPage";
 import SessionsPage from "./pages/Sessions/SessionsPage";
+import SessionDetailPage from "./pages/Sessions/SessionDetailPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -75,6 +76,16 @@ const App = () => (
                   <ProtectedRoute>
                     <AppShell>
                       <SessionsPage />
+                    </AppShell>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/sessions/:id"
+                element={
+                  <ProtectedRoute>
+                    <AppShell>
+                      <SessionDetailPage />
                     </AppShell>
                   </ProtectedRoute>
                 }

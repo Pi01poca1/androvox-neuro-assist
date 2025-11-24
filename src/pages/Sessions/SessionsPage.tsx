@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -7,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Calendar, FileText, Plus, User, Pencil, Filter, X, Trash2 } from 'lucide-react';
+import { Calendar, FileText, Plus, User, Pencil, Filter, X, Trash2, Eye } from 'lucide-react';
 import { SessionFormDialog } from '@/components/sessions/SessionFormDialog';
 import { SessionEditDialog } from '@/components/sessions/SessionEditDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -30,6 +31,7 @@ import type { Session } from '@/types/session';
 import type { Patient } from '@/types/patient';
 
 export default function SessionsPage() {
+  const navigate = useNavigate();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [deletingSession, setDeletingSession] = useState<Session | null>(null);
@@ -366,6 +368,13 @@ export default function SessionsPage() {
                     </CardDescription>
                   </div>
                   <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate(`/sessions/${session.id}`)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
                     {canCreateSessions && (
                       <Button
                         variant="ghost"

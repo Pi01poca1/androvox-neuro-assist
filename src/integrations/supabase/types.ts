@@ -168,6 +168,42 @@ export type Database = {
           },
         ]
       }
+      session_history: {
+        Row: {
+          change_type: string
+          changed_at: string
+          changed_by: string
+          clinic_id: string
+          field_name: string | null
+          id: string
+          new_value: string | null
+          old_value: string | null
+          session_id: string
+        }
+        Insert: {
+          change_type: string
+          changed_at?: string
+          changed_by: string
+          clinic_id: string
+          field_name?: string | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          session_id: string
+        }
+        Update: {
+          change_type?: string
+          changed_at?: string
+          changed_by?: string
+          clinic_id?: string
+          field_name?: string | null
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          session_id?: string
+        }
+        Relationships: []
+      }
       sessions: {
         Row: {
           ai_suggestions: Json | null
