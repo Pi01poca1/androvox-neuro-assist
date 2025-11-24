@@ -20,6 +20,7 @@ import PatientDetailsPage from "./pages/Patients/PatientDetailsPage";
 import SessionsPage from "./pages/Sessions/SessionsPage";
 import SessionDetailPage from "./pages/Sessions/SessionDetailPage";
 import CalendarPage from "./pages/Calendar/CalendarPage";
+import SettingsPage from "./pages/Settings/SettingsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -119,10 +120,7 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <AppShell>
-                      <div className="text-center p-8">
-                        <h1 className="text-2xl font-bold mb-4">Configurações</h1>
-                        <p className="text-muted-foreground">Em breve...</p>
-                      </div>
+                      <SettingsPage />
                     </AppShell>
                   </ProtectedRoute>
                 }
