@@ -12,6 +12,7 @@ export interface SecurityContextType {
   privacyMode: PrivacyMode;
   usbStatus: UsbKeyStatus;
   isOnline: boolean;
+  showNames: boolean;
   setPrivacyMode: (mode: PrivacyMode) => Promise<boolean>;
   checkUsbKey: () => Promise<UsbKeyStatus>;
 }
