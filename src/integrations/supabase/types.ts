@@ -89,6 +89,53 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          id: string
+          message: string
+          read: boolean | null
+          sent_at: string | null
+          session_id: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          clinic_id: string
+          created_at?: string
+          id?: string
+          message: string
+          read?: boolean | null
+          sent_at?: string | null
+          session_id?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          read?: boolean | null
+          sent_at?: string | null
+          session_id?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patients: {
         Row: {
           birth_date: string | null
@@ -261,7 +308,10 @@ export type Database = {
           mode: Database["public"]["Enums"]["session_mode"]
           observations: string | null
           patient_id: string
+          reminder_sent: boolean | null
+          scheduled_duration: number | null
           session_date: string
+          status: Database["public"]["Enums"]["session_status"] | null
           updated_at: string
         }
         Insert: {
@@ -276,7 +326,10 @@ export type Database = {
           mode?: Database["public"]["Enums"]["session_mode"]
           observations?: string | null
           patient_id: string
+          reminder_sent?: boolean | null
+          scheduled_duration?: number | null
           session_date?: string
+          status?: Database["public"]["Enums"]["session_status"] | null
           updated_at?: string
         }
         Update: {
@@ -291,7 +344,10 @@ export type Database = {
           mode?: Database["public"]["Enums"]["session_mode"]
           observations?: string | null
           patient_id?: string
+          reminder_sent?: boolean | null
+          scheduled_duration?: number | null
           session_date?: string
+          status?: Database["public"]["Enums"]["session_status"] | null
           updated_at?: string
         }
         Relationships: [
@@ -382,6 +438,17 @@ export type Database = {
     }
     Functions: {
       generate_patient_public_id: { Args: never; Returns: string }
+      get_upcoming_sessions_for_reminders: {
+        Args: never
+        Returns: {
+          patient_id: string
+          patient_name: string
+          professional_email: string
+          professional_id: string
+          session_date: string
+          session_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -395,6 +462,7 @@ export type Database = {
       gender_type: "M" | "F" | "Outro" | "Não informado"
       privacy_mode: "ID" | "NOME"
       session_mode: "online" | "presencial" | "híbrida"
+      session_status: "agendada" | "concluída" | "cancelada"
       user_role: "admin" | "clinico" | "assistente"
     }
     CompositeTypes: {
@@ -527,6 +595,7 @@ export const Constants = {
       gender_type: ["M", "F", "Outro", "Não informado"],
       privacy_mode: ["ID", "NOME"],
       session_mode: ["online", "presencial", "híbrida"],
+      session_status: ["agendada", "concluída", "cancelada"],
       user_role: ["admin", "clinico", "assistente"],
     },
   },
