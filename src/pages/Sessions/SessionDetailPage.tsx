@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Calendar, Clock, User, FileText } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, User, FileText, Paperclip } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { SessionAttachments } from '@/components/sessions/SessionAttachments';
 
 interface SessionHistory {
   id: string;
@@ -43,6 +44,21 @@ export default function SessionDetailPage() {
         `)
         .eq('id', id)
         .single();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: attachments } = useQuery({
+    queryKey: ['session-attachments', id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('session_attachments')
+        .select('*')
+        .eq('session_id', id)
+        .order('uploaded_at', { ascending: false });
 
       if (error) throw error;
       return data;
@@ -287,6 +303,22 @@ export default function SessionDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Attachments */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Paperclip className="h-5 w-5" />
+            Arquivos Anexados
+          </CardTitle>
+          <CardDescription>
+            Documentos e imagens complementares anexados a esta sessão
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {id && <SessionAttachments sessionId={id} attachments={attachments || []} />}
+        </CardContent>
+      </Card>
 
       {/* Change History */}
       <Card>
