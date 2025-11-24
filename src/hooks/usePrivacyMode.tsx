@@ -1,28 +1,15 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import type { PrivacyMode, UsbKeyStatus, SecurityContextType } from '@/types/security';
 import { useToast } from '@/hooks/use-toast';
+import { useOnlineStatus } from './useOnlineStatus';
 
 const SecurityContext = createContext<SecurityContextType | undefined>(undefined);
 
 export function SecurityProvider({ children }: { children: ReactNode }) {
   const [privacyMode, setPrivacyModeState] = useState<PrivacyMode>('ID');
   const [usbStatus, setUsbStatus] = useState<UsbKeyStatus>('absent');
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const isOnline = useOnlineStatus();
   const { toast } = useToast();
-
-  // Monitor online/offline status
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
 
   // Check USB key status (simulated for web version)
   const checkUsbKey = async (): Promise<UsbKeyStatus> => {
