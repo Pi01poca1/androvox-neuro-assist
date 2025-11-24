@@ -38,9 +38,14 @@ import { useState } from 'react';
 const sessionFormSchema = z.object({
   patient_id: z.string().uuid({ message: 'Selecione um paciente' }),
   session_date: z.string().min(1, { message: 'Data da sessão é obrigatória' }),
+  session_time: z.string().optional(),
+  status: z.enum(['agendada', 'concluída'], {
+    required_error: 'Status é obrigatório',
+  }),
   mode: z.enum(['online', 'presencial', 'híbrida'], {
     required_error: 'Modo de atendimento é obrigatório',
   }),
+  scheduled_duration: z.number().min(15).max(240).default(60),
   main_complaint: z.string().optional(),
   hypotheses: z.string().optional(),
   interventions: z.string().optional(),
@@ -65,7 +70,10 @@ export function SessionFormDialog({ open, onOpenChange, onSuccess }: SessionForm
     resolver: zodResolver(sessionFormSchema),
     defaultValues: {
       session_date: new Date().toISOString().split('T')[0],
+      session_time: '09:00',
+      status: 'concluída',
       mode: 'presencial',
+      scheduled_duration: 60,
       main_complaint: '',
       hypotheses: '',
       interventions: '',
@@ -93,12 +101,20 @@ export function SessionFormDialog({ open, onOpenChange, onSuccess }: SessionForm
         throw new Error('Clínica não encontrada');
       }
 
+      // Combine date and time
+      let sessionDateTime = values.session_date;
+      if (values.session_time && values.status === 'agendada') {
+        sessionDateTime = `${values.session_date}T${values.session_time}:00`;
+      }
+
       const { data, error } = await supabase
         .from('sessions')
         .insert([{
           patient_id: values.patient_id,
-          session_date: values.session_date,
+          session_date: sessionDateTime,
+          status: values.status,
           mode: values.mode,
+          scheduled_duration: values.scheduled_duration,
           main_complaint: values.main_complaint || null,
           hypotheses: values.hypotheses || null,
           interventions: values.interventions || null,

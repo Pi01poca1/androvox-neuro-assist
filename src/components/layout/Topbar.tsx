@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePrivacyMode } from '@/hooks/usePrivacyMode';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -74,6 +75,9 @@ export function Topbar() {
             ⚠️ Dados identificáveis ativos
           </div>
         )}
+
+        {/* Notification Bell */}
+        <NotificationBell />
 
         {/* User Menu */}
         <DropdownMenu>
