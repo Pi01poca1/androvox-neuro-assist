@@ -168,6 +168,50 @@ export type Database = {
           },
         ]
       }
+      session_attachments: {
+        Row: {
+          clinic_id: string
+          file_name: string
+          file_path: string
+          file_size: number
+          file_type: string
+          id: string
+          session_id: string
+          uploaded_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          clinic_id: string
+          file_name: string
+          file_path: string
+          file_size: number
+          file_type: string
+          id?: string
+          session_id: string
+          uploaded_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          clinic_id?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number
+          file_type?: string
+          id?: string
+          session_id?: string
+          uploaded_at?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_attachments_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       session_history: {
         Row: {
           change_type: string
