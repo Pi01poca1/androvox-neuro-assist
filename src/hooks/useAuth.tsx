@@ -18,47 +18,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
+      (event, currentSession) => {
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
-        // Fetch profile and role when user signs in
-        if (currentSession?.user && event === 'SIGNED_IN') {
-          setTimeout(async () => {
-            const [profileResult, roleResult] = await Promise.all([
-              supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', currentSession.user.id)
-                .single(),
-              supabase
-                .from('user_roles')
-                .select('role')
-                .eq('user_id', currentSession.user.id)
-                .single()
-            ]);
-            
-            if (profileResult.data) {
-              setProfile(profileResult.data as UserProfile);
-            }
-            if (roleResult.data) {
-              setUserRole(roleResult.data.role as AppRole);
-            }
-          }, 0);
-        } else if (event === 'SIGNED_OUT') {
+        if (event === 'SIGNED_OUT') {
           setProfile(null);
           setUserRole(null);
         }
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+    // THEN check for existing session and load profile
+    const loadUserData = async () => {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
       
       if (currentSession?.user) {
-        Promise.all([
+        const [profileResult, roleResult] = await Promise.all([
           supabase
             .from('profiles')
             .select('*')
@@ -69,19 +47,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .select('role')
             .eq('user_id', currentSession.user.id)
             .single()
-        ]).then(([profileResult, roleResult]) => {
-          if (profileResult.data) {
-            setProfile(profileResult.data as UserProfile);
-          }
-          if (roleResult.data) {
-            setUserRole(roleResult.data.role as AppRole);
-          }
-          setLoading(false);
-        });
-      } else {
-        setLoading(false);
+        ]);
+        
+        if (profileResult.data) {
+          setProfile(profileResult.data as UserProfile);
+        } else if (profileResult.error) {
+          console.error('Erro ao carregar perfil:', profileResult.error);
+        }
+        
+        if (roleResult.data) {
+          setUserRole(roleResult.data.role as AppRole);
+        } else if (roleResult.error) {
+          console.error('Erro ao carregar role:', roleResult.error);
+        }
       }
-    });
+      
+      setLoading(false);
+    };
+
+    loadUserData();
 
     return () => subscription.unsubscribe();
   }, []);
