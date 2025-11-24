@@ -36,16 +36,19 @@ export function Topbar() {
 
       <div className="flex items-center gap-3">
         {/* Online/Offline Status */}
-        <Badge variant={isOnline ? "default" : "secondary"} className="gap-1">
+        <Badge 
+          variant={isOnline ? "default" : "secondary"} 
+          className="gap-1.5 px-3"
+        >
           {isOnline ? (
             <>
-              <Wifi className="h-3 w-3" />
-              Online
+              <Wifi className="h-3.5 w-3.5" />
+              <span className="font-medium">Online</span>
             </>
           ) : (
             <>
-              <WifiOff className="h-3 w-3" />
-              Offline
+              <WifiOff className="h-3.5 w-3.5" />
+              <span className="font-medium">Offline</span>
             </>
           )}
         </Badge>
@@ -53,10 +56,12 @@ export function Topbar() {
         {/* USB Key Status */}
         <Badge 
           variant={usbStatus === 'present' ? "default" : "secondary"}
-          className="gap-1"
+          className="gap-1.5 px-3"
         >
-          <Key className="h-3 w-3" />
-          USB {usbStatus === 'present' ? 'Conectada' : 'Ausente'}
+          <Key className="h-3.5 w-3.5" />
+          <span className="font-medium">
+            {usbStatus === 'present' ? 'USB OK' : 'Sem USB'}
+          </span>
         </Badge>
 
         {/* Privacy Mode Toggle */}
@@ -64,17 +69,10 @@ export function Topbar() {
           size="sm"
           variant={privacyMode === 'ID' ? "default" : "secondary"}
           onClick={handleTogglePrivacyMode}
-          className="gap-2"
+          className="gap-2 px-4 font-semibold"
         >
-          Modo: <span className="font-bold">{privacyMode}</span>
+          {privacyMode === 'ID' ? '🔒' : '🔓'} Modo {privacyMode}
         </Button>
-
-        {/* Privacy Warning Banner */}
-        {privacyMode === 'NOME' && isOnline && (
-          <div className="px-3 py-1 bg-warning/10 border border-warning/20 rounded text-xs text-warning font-medium">
-            ⚠️ Dados identificáveis ativos
-          </div>
-        )}
 
         {/* Notification Bell */}
         <NotificationBell />
