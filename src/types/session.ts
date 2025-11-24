@@ -1,4 +1,5 @@
 export type SessionMode = 'online' | 'presencial' | 'híbrida';
+export type SessionStatus = 'agendada' | 'concluída' | 'cancelada';
 
 export interface Session {
   id: string;
@@ -6,6 +7,9 @@ export interface Session {
   patient_id: string;
   session_date: string;
   mode: SessionMode;
+  status?: SessionStatus;
+  scheduled_duration?: number;
+  reminder_sent?: boolean;
   main_complaint: string | null;
   observations: string | null;
   interventions: string | null;
