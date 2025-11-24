@@ -32,7 +32,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Sparkles } from 'lucide-react';
+import { useState } from 'react';
 
 const sessionFormSchema = z.object({
   patient_id: z.string().uuid({ message: 'Selecione um paciente' }),
@@ -57,6 +58,8 @@ interface SessionFormDialogProps {
 export function SessionFormDialog({ open, onOpenChange, onSuccess }: SessionFormDialogProps) {
   const { profile } = useAuth();
   const { showNames } = usePrivacyMode();
+  const [isGeneratingHypotheses, setIsGeneratingHypotheses] = useState(false);
+  const [isGeneratingInterventions, setIsGeneratingInterventions] = useState(false);
 
   const form = useForm<SessionFormValues>({
     resolver: zodResolver(sessionFormSchema),
@@ -125,6 +128,62 @@ export function SessionFormDialog({ open, onOpenChange, onSuccess }: SessionForm
       });
     },
   });
+
+  const generateSuggestion = async (type: 'hypotheses' | 'interventions') => {
+    const values = form.getValues();
+    const selectedPatient = patients?.find(p => p.id === values.patient_id);
+    
+    if (!selectedPatient) {
+      toast({
+        title: 'Selecione um paciente',
+        description: 'Selecione um paciente para gerar sugestões.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (type === 'hypotheses') setIsGeneratingHypotheses(true);
+    else setIsGeneratingInterventions(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-session-suggestions', {
+        body: {
+          sessionData: {
+            patientId: selectedPatient.public_id,
+            mode: values.mode,
+            mainComplaint: values.main_complaint,
+            observations: values.observations,
+            interventions: values.interventions,
+            hypotheses: values.hypotheses,
+          },
+          suggestionType: type,
+        },
+      });
+
+      if (error) throw error;
+
+      const currentValue = type === 'hypotheses' ? values.hypotheses : values.interventions;
+      const newValue = currentValue 
+        ? `${currentValue}\n\n--- Sugestões de IA ---\n${data.suggestion}`
+        : data.suggestion;
+
+      form.setValue(type, newValue);
+      
+      toast({
+        title: 'Sugestões geradas',
+        description: 'As sugestões de IA foram adicionadas ao campo.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro ao gerar sugestões',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    } finally {
+      if (type === 'hypotheses') setIsGeneratingHypotheses(false);
+      else setIsGeneratingInterventions(false);
+    }
+  };
 
   const onSubmit = (values: SessionFormValues) => {
     createSessionMutation.mutate(values);
@@ -231,7 +290,28 @@ export function SessionFormDialog({ open, onOpenChange, onSuccess }: SessionForm
               name="hypotheses"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Hipóteses Diagnósticas</FormLabel>
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Hipóteses Diagnósticas</FormLabel>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => generateSuggestion('hypotheses')}
+                      disabled={isGeneratingHypotheses || !form.watch('patient_id')}
+                    >
+                      {isGeneratingHypotheses ? (
+                        <>
+                          <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                          Gerando...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-3 w-3" />
+                          Sugestões IA
+                        </>
+                      )}
+                    </Button>
+                  </div>
                   <FormControl>
                     <Textarea
                       placeholder="Registre as hipóteses diagnósticas levantadas..."
@@ -249,7 +329,28 @@ export function SessionFormDialog({ open, onOpenChange, onSuccess }: SessionForm
               name="interventions"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Intervenções Realizadas</FormLabel>
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Intervenções Realizadas</FormLabel>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => generateSuggestion('interventions')}
+                      disabled={isGeneratingInterventions || !form.watch('patient_id')}
+                    >
+                      {isGeneratingInterventions ? (
+                        <>
+                          <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                          Gerando...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-3 w-3" />
+                          Sugestões IA
+                        </>
+                      )}
+                    </Button>
+                  </div>
                   <FormControl>
                     <Textarea
                       placeholder="Descreva as intervenções terapêuticas aplicadas..."
