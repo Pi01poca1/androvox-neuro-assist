@@ -7,12 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Calendar, FileText, Plus, User } from 'lucide-react';
+import { Calendar, FileText, Plus, User, Pencil } from 'lucide-react';
 import { SessionFormDialog } from '@/components/sessions/SessionFormDialog';
+import { SessionEditDialog } from '@/components/sessions/SessionEditDialog';
 import type { Session } from '@/types/session';
 
 export default function SessionsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingSession, setEditingSession] = useState<Session | null>(null);
   const { canViewSessions, canCreateSessions } = usePermissions();
   const { showNames } = usePrivacyMode();
 
@@ -151,6 +153,15 @@ export default function SessionsPage() {
                         : session.patients?.public_id}
                     </CardDescription>
                   </div>
+                  {canCreateSessions && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditingSession(session)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -213,6 +224,16 @@ export default function SessionsPage() {
         onSuccess={() => {
           refetch();
           setIsFormOpen(false);
+        }}
+      />
+
+      <SessionEditDialog
+        open={!!editingSession}
+        onOpenChange={(open) => !open && setEditingSession(null)}
+        session={editingSession}
+        onSuccess={() => {
+          refetch();
+          setEditingSession(null);
         }}
       />
     </div>
