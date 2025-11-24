@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Calendar, FileText, Plus, User, Pencil, Filter, X, Trash2, Eye } from 'lucide-react';
+import { Calendar, FileText, Plus, User, Pencil, Filter, X, Trash2, Eye, Download, Loader2 } from 'lucide-react';
 import { SessionFormDialog } from '@/components/sessions/SessionFormDialog';
 import { SessionEditDialog } from '@/components/sessions/SessionEditDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -39,6 +39,7 @@ export default function SessionsPage() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [selectedMode, setSelectedMode] = useState<Session['mode'] | 'all'>('all');
+  const [isExporting, setIsExporting] = useState(false);
   const { canViewSessions, canCreateSessions, canDeleteSessions } = usePermissions();
   const { showNames } = usePrivacyMode();
   const { toast } = useToast();
@@ -135,6 +136,72 @@ export default function SessionsPage() {
     setSelectedMode('all');
   };
 
+  const handleExportPDF = async () => {
+    if (!sessions || sessions.length === 0) {
+      toast({
+        title: 'Nenhuma sessão para exportar',
+        description: 'Não há sessões disponíveis com os filtros aplicados.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      const selectedPatientData = patients?.find(p => p.id === selectedPatient);
+      const filters = {
+        hasFilters: hasActiveFilters,
+        patient: selectedPatientData ? 
+          (showNames && selectedPatientData.full_name ? selectedPatientData.full_name : selectedPatientData.public_id) : 
+          undefined,
+        startDate: startDate?.toISOString(),
+        endDate: endDate?.toISOString(),
+        mode: selectedMode !== 'all' ? getModeLabel(selectedMode) : undefined,
+      };
+
+      const { data, error } = await supabase.functions.invoke('export-sessions-pdf', {
+        body: {
+          sessions,
+          filters,
+          clinicName: 'Androvox Assist',
+        },
+      });
+
+      if (error) throw error;
+
+      // Create a temporary HTML page and print it
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        throw new Error('Não foi possível abrir a janela de impressão. Verifique se pop-ups estão permitidos.');
+      }
+
+      printWindow.document.write(data.html);
+      printWindow.document.close();
+
+      // Wait for content to load then print
+      printWindow.onload = () => {
+        setTimeout(() => {
+          printWindow.print();
+        }, 250);
+      };
+
+      toast({
+        title: 'Relatório gerado',
+        description: 'O relatório está pronto para impressão ou exportação em PDF.',
+      });
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      toast({
+        title: 'Erro ao exportar relatório',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const hasActiveFilters = selectedPatient !== 'all' || startDate || endDate || selectedMode !== 'all';
 
   const getModeLabel = (mode: Session['mode']) => {
@@ -180,12 +247,31 @@ export default function SessionsPage() {
             Registro e acompanhamento de atendimentos
           </p>
         </div>
-        {canCreateSessions && (
-          <Button onClick={() => setIsFormOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Sessão
+        <div className="flex gap-2">
+          <Button
+            onClick={handleExportPDF}
+            variant="outline"
+            disabled={isExporting || !sessions || sessions.length === 0}
+          >
+            {isExporting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Gerando...
+              </>
+            ) : (
+              <>
+                <Download className="mr-2 h-4 w-4" />
+                Exportar PDF
+              </>
+            )}
           </Button>
-        )}
+          {canCreateSessions && (
+            <Button onClick={() => setIsFormOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Sessão
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filters Section */}
