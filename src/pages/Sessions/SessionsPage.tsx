@@ -8,10 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Calendar, FileText, Plus, User, Pencil, Filter, X, Trash2, Eye, Download, Loader2 } from 'lucide-react';
+import { Calendar, FileText, Plus, User, Pencil, Filter, X, Trash2, Eye, Download, Loader2, Search } from 'lucide-react';
 import { SessionFormDialog } from '@/components/sessions/SessionFormDialog';
 import { SessionEditDialog } from '@/components/sessions/SessionEditDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format } from 'date-fns';
@@ -39,6 +40,7 @@ export default function SessionsPage() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [selectedMode, setSelectedMode] = useState<Session['mode'] | 'all'>('all');
+  const [searchText, setSearchText] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const { canViewSessions, canCreateSessions, canDeleteSessions } = usePermissions();
   const { showNames } = usePrivacyMode();
@@ -134,10 +136,33 @@ export default function SessionsPage() {
     setStartDate(undefined);
     setEndDate(undefined);
     setSelectedMode('all');
+    setSearchText('');
   };
 
+  // Apply text search filter to sessions
+  const filteredSessions = sessions?.filter((session) => {
+    if (!searchText.trim()) return true;
+
+    const searchLower = searchText.toLowerCase();
+    const searchableText = [
+      session.main_complaint,
+      session.hypotheses,
+      session.interventions,
+      session.observations,
+      session.patients?.public_id,
+      showNames ? session.patients?.full_name : '',
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return searchableText.includes(searchLower);
+  }) || [];
+
+  const hasActiveFilters = selectedPatient !== 'all' || startDate || endDate || selectedMode !== 'all' || searchText.trim() !== '';
+
   const handleExportPDF = async () => {
-    if (!sessions || sessions.length === 0) {
+    if (!filteredSessions || filteredSessions.length === 0) {
       toast({
         title: 'Nenhuma sessão para exportar',
         description: 'Não há sessões disponíveis com os filtros aplicados.',
@@ -162,7 +187,7 @@ export default function SessionsPage() {
 
       const { data, error } = await supabase.functions.invoke('export-sessions-pdf', {
         body: {
-          sessions,
+          sessions: filteredSessions,
           filters,
           clinicName: 'Androvox Assist',
         },
@@ -201,8 +226,6 @@ export default function SessionsPage() {
       setIsExporting(false);
     }
   };
-
-  const hasActiveFilters = selectedPatient !== 'all' || startDate || endDate || selectedMode !== 'all';
 
   const getModeLabel = (mode: Session['mode']) => {
     const labels = {
@@ -251,7 +274,7 @@ export default function SessionsPage() {
           <Button
             onClick={handleExportPDF}
             variant="outline"
-            disabled={isExporting || !sessions || sessions.length === 0}
+            disabled={isExporting || !filteredSessions || filteredSessions.length === 0}
           >
             {isExporting ? (
               <>
@@ -283,103 +306,119 @@ export default function SessionsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Patient Filter */}
+          <div className="space-y-4">
+            {/* Search Box */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Paciente</label>
-              <Select value={selectedPatient} onValueChange={setSelectedPatient}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos os pacientes" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os pacientes</SelectItem>
-                  {patients?.map((patient) => (
-                    <SelectItem key={patient.id} value={patient.id}>
-                      {showNames && patient.full_name ? patient.full_name : patient.public_id}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium">Busca Textual</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar em queixas, hipóteses, intervenções, observações..."
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
 
-            {/* Start Date Filter */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Data Inicial</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      'w-full justify-start text-left font-normal',
-                      !startDate && 'text-muted-foreground'
-                    )}
-                  >
-                    <Calendar className="mr-2 h-4 w-4" />
-                    {startDate ? format(startDate, 'dd/MM/yyyy') : 'Selecionar data'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <CalendarComponent
-                    mode="single"
-                    selected={startDate}
-                    onSelect={setStartDate}
-                    initialFocus
-                    className="pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Patient Filter */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Paciente</label>
+                <Select value={selectedPatient} onValueChange={setSelectedPatient}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos os pacientes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os pacientes</SelectItem>
+                    {patients?.map((patient) => (
+                      <SelectItem key={patient.id} value={patient.id}>
+                        {showNames && patient.full_name ? patient.full_name : patient.public_id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            {/* End Date Filter */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Data Final</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      'w-full justify-start text-left font-normal',
-                      !endDate && 'text-muted-foreground'
-                    )}
-                  >
-                    <Calendar className="mr-2 h-4 w-4" />
-                    {endDate ? format(endDate, 'dd/MM/yyyy') : 'Selecionar data'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <CalendarComponent
-                    mode="single"
-                    selected={endDate}
-                    onSelect={setEndDate}
-                    initialFocus
-                    className="pointer-events-auto"
-                    disabled={(date) => startDate ? date < startDate : false}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+              {/* Start Date Filter */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Data Inicial</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        'w-full justify-start text-left font-normal',
+                        !startDate && 'text-muted-foreground'
+                      )}
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {startDate ? format(startDate, 'dd/MM/yyyy') : 'Selecionar data'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={startDate}
+                      onSelect={setStartDate}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
 
-            {/* Mode Filter */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Modo de Atendimento</label>
-              <Select value={selectedMode} onValueChange={(value) => setSelectedMode(value as Session['mode'] | 'all')}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos os modos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os modos</SelectItem>
-                  <SelectItem value="online">Online</SelectItem>
-                  <SelectItem value="presencial">Presencial</SelectItem>
-                  <SelectItem value="híbrida">Híbrida</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* End Date Filter */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Data Final</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        'w-full justify-start text-left font-normal',
+                        !endDate && 'text-muted-foreground'
+                      )}
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {endDate ? format(endDate, 'dd/MM/yyyy') : 'Selecionar data'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={endDate}
+                      onSelect={setEndDate}
+                      initialFocus
+                      className="pointer-events-auto"
+                      disabled={(date) => startDate ? date < startDate : false}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Mode Filter */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Modo de Atendimento</label>
+                <Select value={selectedMode} onValueChange={(value) => setSelectedMode(value as Session['mode'] | 'all')}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos os modos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os modos</SelectItem>
+                    <SelectItem value="online">Online</SelectItem>
+                    <SelectItem value="presencial">Presencial</SelectItem>
+                    <SelectItem value="híbrida">Híbrida</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
           {hasActiveFilters && (
             <div className="mt-4 flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
-                {sessions?.length || 0} sessão(ões) encontrada(s)
+                {filteredSessions.length} sessão(ões) encontrada(s)
               </p>
               <Button variant="ghost" size="sm" onClick={clearFilters}>
                 <X className="h-4 w-4 mr-2" />
@@ -426,9 +465,9 @@ export default function SessionsPage() {
         </Card>
       )}
 
-      {sessions && sessions.length > 0 && (
+      {filteredSessions && filteredSessions.length > 0 && (
         <div className="space-y-4">
-          {sessions.map((session) => (
+          {filteredSessions.map((session) => (
             <Card key={session.id}>
               <CardHeader>
                 <div className="flex items-start justify-between">
