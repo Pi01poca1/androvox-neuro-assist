@@ -17,6 +17,7 @@ import ForgotPasswordPage from "./pages/Auth/ForgotPasswordPage";
 import DashboardPage from "./pages/Dashboard/DashboardPage";
 import PatientsPage from "./pages/Patients/PatientsPage";
 import PatientDetailsPage from "./pages/Patients/PatientDetailsPage";
+import SessionsPage from "./pages/Sessions/SessionsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -73,10 +74,7 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <AppShell>
-                      <div className="text-center p-8">
-                        <h1 className="text-2xl font-bold mb-4">Módulo de Sessões</h1>
-                        <p className="text-muted-foreground">Em breve...</p>
-                      </div>
+                      <SessionsPage />
                     </AppShell>
                   </ProtectedRoute>
                 }

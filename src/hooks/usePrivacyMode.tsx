@@ -83,10 +83,13 @@ export function SecurityProvider({ children }: { children: ReactNode }) {
     return true;
   };
 
+  const showNames = privacyMode === 'NOME' && usbStatus === 'present' && !isOnline;
+
   const value: SecurityContextType = {
     privacyMode,
     usbStatus,
     isOnline,
+    showNames,
     setPrivacyMode,
     checkUsbKey,
   };

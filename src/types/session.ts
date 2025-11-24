@@ -1,6 +1,6 @@
 export type SessionMode = 'online' | 'presencial' | 'híbrida';
 
-export interface ClinicalSession {
+export interface Session {
   id: string;
   clinic_id: string;
   patient_id: string;
@@ -10,11 +10,18 @@ export interface ClinicalSession {
   observations: string | null;
   interventions: string | null;
   hypotheses: string | null;
-  ai_suggestions: Record<string, any>;
+  ai_suggestions: Record<string, any> | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  patients?: {
+    id: string;
+    public_id: string;
+    full_name: string | null;
+  };
 }
+
+export interface ClinicalSession extends Session {}
 
 export interface CreateSessionInput {
   patient_id: string;
