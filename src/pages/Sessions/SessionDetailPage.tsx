@@ -116,10 +116,24 @@ export default function SessionDetailPage() {
     return variants[mode] || 'default';
   };
 
+  const getSessionTypeLabel = (sessionType: string | undefined) => {
+    if (!sessionType) return 'Não especificado';
+    const types: Record<string, string> = {
+      anamnese: 'Anamnese',
+      avaliacao_neuropsicologica: 'Avaliação Neuropsicológica',
+      tcc: 'TCC (Terapia Cognitivo-Comportamental)',
+      intervencao_neuropsicologica: 'Intervenção Neuropsicológica',
+      retorno: 'Retorno',
+      outra: 'Outra',
+    };
+    return types[sessionType] || sessionType;
+  };
+
   const getFieldLabel = (fieldName: string | null) => {
     const labels: Record<string, string> = {
       session_date: 'Data da Sessão',
       mode: 'Modo de Atendimento',
+      session_type: 'Tipo de Sessão',
       main_complaint: 'Queixa Principal',
       hypotheses: 'Hipóteses Diagnósticas',
       interventions: 'Intervenções Realizadas',
@@ -201,6 +215,10 @@ export default function SessionDetailPage() {
                   ? `${session.patients.full_name} (${session.patients.public_id})`
                   : session.patients?.public_id}
               </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Tipo de Sessão</p>
+              <p className="font-medium">{getSessionTypeLabel(session.session_type)}</p>
             </div>
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground flex items-center gap-2">

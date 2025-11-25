@@ -311,6 +311,7 @@ export type Database = {
           reminder_sent: boolean | null
           scheduled_duration: number | null
           session_date: string
+          session_type: Database["public"]["Enums"]["session_type"] | null
           status: Database["public"]["Enums"]["session_status"] | null
           updated_at: string
         }
@@ -329,6 +330,7 @@ export type Database = {
           reminder_sent?: boolean | null
           scheduled_duration?: number | null
           session_date?: string
+          session_type?: Database["public"]["Enums"]["session_type"] | null
           status?: Database["public"]["Enums"]["session_status"] | null
           updated_at?: string
         }
@@ -347,6 +349,7 @@ export type Database = {
           reminder_sent?: boolean | null
           scheduled_duration?: number | null
           session_date?: string
+          session_type?: Database["public"]["Enums"]["session_type"] | null
           status?: Database["public"]["Enums"]["session_status"] | null
           updated_at?: string
         }
@@ -464,6 +467,13 @@ export type Database = {
       privacy_mode: "ID" | "NOME"
       session_mode: "online" | "presencial" | "híbrida"
       session_status: "agendada" | "concluída" | "cancelada"
+      session_type:
+        | "anamnese"
+        | "avaliacao_neuropsicologica"
+        | "tcc"
+        | "intervencao_neuropsicologica"
+        | "retorno"
+        | "outra"
       user_role: "admin" | "clinico" | "assistente"
     }
     CompositeTypes: {
@@ -597,6 +607,14 @@ export const Constants = {
       privacy_mode: ["ID", "NOME"],
       session_mode: ["online", "presencial", "híbrida"],
       session_status: ["agendada", "concluída", "cancelada"],
+      session_type: [
+        "anamnese",
+        "avaliacao_neuropsicologica",
+        "tcc",
+        "intervencao_neuropsicologica",
+        "retorno",
+        "outra",
+      ],
       user_role: ["admin", "clinico", "assistente"],
     },
   },
