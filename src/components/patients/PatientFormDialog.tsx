@@ -92,8 +92,11 @@ export function PatientFormDialog({ open, onOpenChange }: PatientFormDialogProps
   // Mutation para criar paciente
   const createPatientMutation = useMutation({
     mutationFn: async (data: PatientFormData) => {
+      console.log('Profile no mutation:', profile);
+      console.log('Clinic ID:', profile?.clinic_id);
+      
       if (!profile?.clinic_id) {
-        throw new Error('Clínica não encontrada');
+        throw new Error('Clínica não encontrada. Perfil: ' + JSON.stringify(profile));
       }
 
       // Primeiro, gera o ID público
