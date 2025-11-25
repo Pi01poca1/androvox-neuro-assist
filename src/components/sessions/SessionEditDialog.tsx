@@ -40,6 +40,9 @@ const sessionEditSchema = z.object({
   mode: z.enum(['online', 'presencial', 'híbrida'], {
     required_error: 'Modo de atendimento é obrigatório',
   }),
+  session_type: z.enum(['anamnese', 'avaliacao_neuropsicologica', 'tcc', 'intervencao_neuropsicologica', 'retorno', 'outra'], {
+    required_error: 'Tipo de sessão é obrigatório',
+  }),
   main_complaint: z.string().optional(),
   hypotheses: z.string().optional(),
   interventions: z.string().optional(),
@@ -66,6 +69,7 @@ export function SessionEditDialog({ open, onOpenChange, session, onSuccess }: Se
     values: session ? {
       session_date: session.session_date.split('T')[0],
       mode: session.mode,
+      session_type: session.session_type || 'outra',
       main_complaint: session.main_complaint || '',
       hypotheses: session.hypotheses || '',
       interventions: session.interventions || '',
@@ -82,6 +86,7 @@ export function SessionEditDialog({ open, onOpenChange, session, onSuccess }: Se
         .update({
           session_date: values.session_date,
           mode: values.mode,
+          session_type: values.session_type,
           main_complaint: values.main_complaint || null,
           hypotheses: values.hypotheses || null,
           interventions: values.interventions || null,
@@ -217,6 +222,32 @@ export function SessionEditDialog({ open, onOpenChange, session, onSuccess }: Se
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="session_type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo de Sessão</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="anamnese">Anamnese</SelectItem>
+                      <SelectItem value="avaliacao_neuropsicologica">Avaliação Neuropsicológica</SelectItem>
+                      <SelectItem value="tcc">TCC (Terapia Cognitivo-Comportamental)</SelectItem>
+                      <SelectItem value="intervencao_neuropsicologica">Intervenção Neuropsicológica</SelectItem>
+                      <SelectItem value="retorno">Retorno</SelectItem>
+                      <SelectItem value="outra">Outra</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

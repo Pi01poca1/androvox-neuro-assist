@@ -1,5 +1,6 @@
 export type SessionMode = 'online' | 'presencial' | 'híbrida';
 export type SessionStatus = 'agendada' | 'concluída' | 'cancelada';
+export type SessionType = 'anamnese' | 'avaliacao_neuropsicologica' | 'tcc' | 'intervencao_neuropsicologica' | 'retorno' | 'outra';
 
 export interface Session {
   id: string;
@@ -7,6 +8,7 @@ export interface Session {
   patient_id: string;
   session_date: string;
   mode: SessionMode;
+  session_type?: SessionType;
   status?: SessionStatus;
   scheduled_duration?: number;
   reminder_sent?: boolean;
@@ -31,6 +33,7 @@ export interface CreateSessionInput {
   patient_id: string;
   session_date?: string;
   mode?: SessionMode;
+  session_type?: SessionType;
   main_complaint?: string;
   observations?: string;
   interventions?: string;
