@@ -481,25 +481,7 @@ export type Database = {
       }
     }
     Views: {
-      clinic_team: {
-        Row: {
-          clinic_id: string | null
-          created_at: string | null
-          email: string | null
-          full_name: string | null
-          id: string | null
-          role: Database["public"]["Enums"]["app_role"] | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_clinic_id_fkey"
-            columns: ["clinic_id"]
-            isOneToOne: false
-            referencedRelation: "clinics"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
+      [_ in never]: never
     }
     Functions: {
       accept_secretary_invitation: {
@@ -507,6 +489,17 @@ export type Database = {
         Returns: boolean
       }
       generate_patient_public_id: { Args: never; Returns: string }
+      get_clinic_team: {
+        Args: { _clinic_id: string }
+        Returns: {
+          clinic_id: string
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+        }[]
+      }
       get_upcoming_sessions_for_reminders: {
         Args: never
         Returns: {

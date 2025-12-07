@@ -1,19 +1,24 @@
 import { useState } from 'react';
-import { Shield, Key, Wifi, Settings as SettingsIcon, Lock, Unlock } from 'lucide-react';
+import { Shield, Key, Wifi, Settings as SettingsIcon, Lock, Unlock, Users } from 'lucide-react';
 import { usePrivacyMode } from '@/hooks/usePrivacyMode';
+import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { OfflineSyncIndicator } from '@/components/offline/OfflineSyncIndicator';
 import { InstallPWA } from '@/components/offline/InstallPWA';
+import { TeamManagement } from '@/components/settings/TeamManagement';
 
 export default function SettingsPage() {
   const { privacyMode, usbStatus, isOnline, setPrivacyMode, checkUsbKey } = usePrivacyMode();
+  const { userRole } = useAuth();
   const { toast } = useToast();
   const [isSimulatingUsb, setIsSimulatingUsb] = useState(false);
+  const isProfessional = userRole === 'profissional';
 
   const handleToggleUsbKey = () => {
     setIsSimulatingUsb(true);
@@ -61,6 +66,22 @@ export default function SettingsPage() {
 
       {/* Install PWA Banner */}
       <InstallPWA />
+
+      <Tabs defaultValue="security" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="security">
+            <Shield className="h-4 w-4 mr-2" />
+            Segurança
+          </TabsTrigger>
+          {isProfessional && (
+            <TabsTrigger value="team">
+              <Users className="h-4 w-4 mr-2" />
+              Equipe
+            </TabsTrigger>
+          )}
+        </TabsList>
+
+        <TabsContent value="security" className="space-y-6 mt-6">
 
       {/* Privacy Mode Settings */}
       <Card>
@@ -244,6 +265,14 @@ export default function SettingsPage() {
 
       {/* Offline Sync Card */}
       <OfflineSyncIndicator />
+        </TabsContent>
+
+        {isProfessional && (
+          <TabsContent value="team" className="mt-6">
+            <TeamManagement />
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   );
 }
