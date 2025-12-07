@@ -123,8 +123,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       toast({
-        title: "Conta criada com sucesso!",
-        description: "Você já pode fazer login.",
+        title: "Cadastro realizado!",
+        description: "Verifique seu e-mail para confirmar sua conta.",
       });
       
       return { error: null };

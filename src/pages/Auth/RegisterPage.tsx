@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Brain, Loader2, UserRound, Briefcase, CheckCircle } from 'lucide-react';
+import { Brain, Loader2, UserRound, Briefcase, CheckCircle, Mail } from 'lucide-react';
 import type { AppRole } from '@/types/roles';
 
 export default function RegisterPage() {
@@ -19,6 +19,7 @@ export default function RegisterPage() {
   const [clinicName, setClinicName] = useState('');
   const [role, setRole] = useState<AppRole>('profissional');
   const [loading, setLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const [searchParams] = useSearchParams();
   const [invitationToken, setInvitationToken] = useState<string | null>(null);
   const [invitationEmail, setInvitationEmail] = useState<string | null>(null);
@@ -102,15 +103,64 @@ export default function RegisterPage() {
       role === 'profissional' ? clinicName : undefined
     );
     
-    if (!error && !invitationToken) {
-      navigate('/dashboard');
+    if (!error) {
+      // Show email confirmation message
+      setEmailSent(true);
     }
-    // If there's an invitation, the useEffect above will handle accepting it
     
     setLoading(false);
   };
 
   const isSecretaryInvite = !!invitationToken;
+
+  // Email confirmation success screen
+  if (emailSent) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-4 text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+              <Mail className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle className="text-2xl">Verifique seu e-mail</CardTitle>
+            <CardDescription className="text-base">
+              Enviamos um link de confirmação para <strong className="text-foreground">{email}</strong>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Alert className="bg-primary/5 border-primary/20">
+              <CheckCircle className="h-4 w-4 text-primary" />
+              <AlertDescription>
+                Clique no link enviado para seu e-mail para ativar sua conta e começar a usar o sistema.
+              </AlertDescription>
+            </Alert>
+            <div className="text-sm text-muted-foreground text-center space-y-2">
+              <p>Não recebeu o e-mail?</p>
+              <ul className="list-disc list-inside text-left space-y-1">
+                <li>Verifique sua pasta de spam</li>
+                <li>Confirme se o e-mail digitado está correto</li>
+              </ul>
+            </div>
+          </CardContent>
+          <CardFooter className="flex flex-col space-y-3">
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={() => setEmailSent(false)}
+            >
+              Voltar e corrigir e-mail
+            </Button>
+            <Link 
+              to="/auth/login" 
+              className="text-sm text-primary hover:underline font-medium"
+            >
+              Já confirmou? Fazer login
+            </Link>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted p-4">
