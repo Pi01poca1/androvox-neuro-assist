@@ -22,6 +22,7 @@ import SessionDetailPage from "./pages/Sessions/SessionDetailPage";
 import CalendarPage from "./pages/Calendar/CalendarPage";
 import SettingsPage from "./pages/Settings/SettingsPage";
 import AIAssistantPage from "./pages/AI/AIAssistantPage";
+import ReportsPage from "./pages/Reports/ReportsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -119,6 +120,16 @@ const App = () => (
                   <ProtectedRoute>
                     <AppShell>
                       <SettingsPage />
+                    </AppShell>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/reports"
+                element={
+                  <ProtectedRoute>
+                    <AppShell>
+                      <ReportsPage />
                     </AppShell>
                   </ProtectedRoute>
                 }

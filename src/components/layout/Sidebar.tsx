@@ -6,6 +6,7 @@ import {
   Settings,
   ChevronRight,
   Calendar,
+  FileBarChart,
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { NavLink } from '@/components/NavLink';
@@ -38,6 +39,7 @@ export function Sidebar() {
     
     if (permissions.canUseAI) {
       items.push({ title: 'Assistente IA', url: '/ai-assistant', icon: Brain });
+      items.push({ title: 'Relatórios', url: '/reports', icon: FileBarChart });
     }
     
     if (permissions.canAccessSettings) {
