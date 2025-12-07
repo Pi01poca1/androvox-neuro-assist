@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { format } from 'date-fns';
+import { format, startOfDay, endOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -80,16 +80,16 @@ export default function SessionsPage() {
         query = query.eq('patient_id', selectedPatient);
       }
 
-      // Apply date range filters - use date strings for comparison
+      // Apply date range filters - properly handle timezone
       if (startDate) {
-        // Format as YYYY-MM-DD for date comparison
-        const startDateStr = format(startDate, 'yyyy-MM-dd');
-        query = query.gte('session_date', startDateStr);
+        // Use start of day in local timezone, then convert to ISO
+        const start = startOfDay(startDate);
+        query = query.gte('session_date', start.toISOString());
       }
       if (endDate) {
-        // Format as YYYY-MM-DD and add time for end of day
-        const endDateStr = format(endDate, 'yyyy-MM-dd') + 'T23:59:59.999Z';
-        query = query.lte('session_date', endDateStr);
+        // Use end of day in local timezone, then convert to ISO
+        const end = endOfDay(endDate);
+        query = query.lte('session_date', end.toISOString());
       }
 
       // Apply mode filter - exact match with enum values
