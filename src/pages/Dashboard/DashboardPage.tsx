@@ -3,8 +3,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabaseClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, FileText, Calendar, TrendingUp } from 'lucide-react';
+import { Users, FileText, Calendar, TrendingUp, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
+import { UpcomingSessions } from '@/components/dashboard/UpcomingSessions';
 
 export default function DashboardPage() {
   const { profile } = useAuth();
@@ -58,14 +60,21 @@ export default function DashboardPage() {
         </div>
         <div className="flex gap-3">
           <Button asChild>
-            <Link to="/sessions/new">Nova Sessão</Link>
+            <Link to="/sessions/new">
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Sessão
+            </Link>
           </Button>
           <Button asChild variant="outline">
-            <Link to="/patients/new">Novo Paciente</Link>
+            <Link to="/patients/new">
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Paciente
+            </Link>
           </Button>
         </div>
       </div>
 
+      {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -113,54 +122,62 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Próximos Passos</CardTitle>
-          <CardDescription>
-            Comece a usar o sistema para gerenciar sua prática clínica
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-start gap-4 p-4 rounded-lg border">
-            <Users className="h-5 w-5 text-primary mt-0.5" />
-            <div className="flex-1">
-              <h3 className="font-medium mb-1">Cadastre seus pacientes</h3>
-              <p className="text-sm text-muted-foreground mb-3">
-                Adicione informações básicas e comece a construir o histórico clínico
-              </p>
-              <Button asChild size="sm">
-                <Link to="/patients">Gerenciar Pacientes</Link>
-              </Button>
-            </div>
-          </div>
+      {/* Charts Section */}
+      <DashboardCharts />
 
-          <div className="flex items-start gap-4 p-4 rounded-lg border">
-            <FileText className="h-5 w-5 text-primary mt-0.5" />
-            <div className="flex-1">
-              <h3 className="font-medium mb-1">Registre suas sessões</h3>
-              <p className="text-sm text-muted-foreground mb-3">
-                Documente atendimentos com observações, intervenções e hipóteses
-              </p>
-              <Button asChild size="sm">
-                <Link to="/sessions">Ver Sessões</Link>
-              </Button>
-            </div>
-          </div>
+      {/* Upcoming Sessions & Quick Actions */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <UpcomingSessions />
 
-          <div className="flex items-start gap-4 p-4 rounded-lg border">
-            <TrendingUp className="h-5 w-5 text-primary mt-0.5" />
-            <div className="flex-1">
-              <h3 className="font-medium mb-1">Use o Assistente IA</h3>
-              <p className="text-sm text-muted-foreground mb-3">
-                Obtenha sugestões de hipóteses e intervenções baseadas em IA
-              </p>
-              <Button asChild size="sm" variant="outline">
-                <Link to="/ai-assistant">Explorar IA</Link>
-              </Button>
+        <Card>
+          <CardHeader>
+            <CardTitle>Ações Rápidas</CardTitle>
+            <CardDescription>
+              Acesso rápido às principais funcionalidades
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-start gap-4 p-4 rounded-lg border hover:bg-accent/50 transition-colors">
+              <Users className="h-5 w-5 text-primary mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-medium mb-1">Gerenciar Pacientes</h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Cadastre e gerencie informações dos pacientes
+                </p>
+                <Button asChild size="sm">
+                  <Link to="/patients">Acessar Pacientes</Link>
+                </Button>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+
+            <div className="flex items-start gap-4 p-4 rounded-lg border hover:bg-accent/50 transition-colors">
+              <FileText className="h-5 w-5 text-primary mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-medium mb-1">Sessões Clínicas</h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Documente atendimentos com observações e hipóteses
+                </p>
+                <Button asChild size="sm">
+                  <Link to="/sessions">Ver Sessões</Link>
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4 p-4 rounded-lg border hover:bg-accent/50 transition-colors">
+              <TrendingUp className="h-5 w-5 text-primary mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-medium mb-1">Assistente IA</h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Sugestões de hipóteses e intervenções
+                </p>
+                <Button asChild size="sm" variant="outline">
+                  <Link to="/ai-assistant">Explorar IA</Link>
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

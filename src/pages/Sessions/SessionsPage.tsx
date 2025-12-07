@@ -40,6 +40,7 @@ export default function SessionsPage() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [selectedMode, setSelectedMode] = useState<Session['mode'] | 'all'>('all');
+  const [selectedType, setSelectedType] = useState<Session['session_type'] | 'all'>('all');
   const [searchText, setSearchText] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const { canViewSessions, canCreateSessions, canDeleteSessions } = usePermissions();
@@ -62,7 +63,7 @@ export default function SessionsPage() {
   });
 
   const { data: sessions, isLoading, refetch } = useQuery({
-    queryKey: ['sessions', selectedPatient, startDate, endDate, selectedMode],
+    queryKey: ['sessions', selectedPatient, startDate, endDate, selectedMode, selectedType],
     queryFn: async () => {
       let query = supabase
         .from('sessions')
@@ -95,6 +96,11 @@ export default function SessionsPage() {
       // Apply mode filter - exact match with enum values
       if (selectedMode && selectedMode !== 'all') {
         query = query.eq('mode', selectedMode);
+      }
+
+      // Apply session type filter
+      if (selectedType && selectedType !== 'all') {
+        query = query.eq('session_type', selectedType);
       }
 
       query = query.order('session_date', { ascending: false });
@@ -138,6 +144,7 @@ export default function SessionsPage() {
     setStartDate(undefined);
     setEndDate(undefined);
     setSelectedMode('all');
+    setSelectedType('all');
     setSearchText('');
   };
 
@@ -161,7 +168,20 @@ export default function SessionsPage() {
     return searchableText.includes(searchLower);
   }) || [];
 
-  const hasActiveFilters = selectedPatient !== 'all' || startDate || endDate || selectedMode !== 'all' || searchText.trim() !== '';
+  const hasActiveFilters = selectedPatient !== 'all' || startDate || endDate || selectedMode !== 'all' || selectedType !== 'all' || searchText.trim() !== '';
+
+  const getSessionTypeLabel = (type?: Session['session_type']) => {
+    if (!type) return 'Não definido';
+    const labels: Record<string, string> = {
+      anamnese: 'Anamnese',
+      avaliacao_neuropsicologica: 'Avaliação Neuropsicológica',
+      tcc: 'TCC',
+      intervencao_neuropsicologica: 'Intervenção Neuropsicológica',
+      retorno: 'Retorno',
+      outra: 'Outra',
+    };
+    return labels[type] || type;
+  };
 
   const handleExportPDF = async () => {
     if (!filteredSessions || filteredSessions.length === 0) {
@@ -435,6 +455,25 @@ export default function SessionsPage() {
                     <SelectItem value="online">Online</SelectItem>
                     <SelectItem value="presencial">Presencial</SelectItem>
                     <SelectItem value="híbrida">Híbrida</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Session Type Filter */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Tipo de Sessão</label>
+                <Select value={selectedType} onValueChange={(value) => setSelectedType(value as Session['session_type'] | 'all')}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos os tipos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os tipos</SelectItem>
+                    <SelectItem value="anamnese">Anamnese</SelectItem>
+                    <SelectItem value="avaliacao_neuropsicologica">Avaliação Neuropsicológica</SelectItem>
+                    <SelectItem value="tcc">TCC</SelectItem>
+                    <SelectItem value="intervencao_neuropsicologica">Intervenção Neuropsicológica</SelectItem>
+                    <SelectItem value="retorno">Retorno</SelectItem>
+                    <SelectItem value="outra">Outra</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
