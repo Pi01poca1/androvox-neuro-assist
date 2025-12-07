@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { PatientEditDialog } from '@/components/patients/PatientEditDialog';
 import { PatientSessionsList } from '@/components/patients/PatientSessionsList';
+import { PatientEvolutionTab } from '@/components/patients/PatientEvolutionTab';
 
 export default function PatientDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -266,19 +267,7 @@ export default function PatientDetailsPage() {
 
         {/* Tab: Evolução Clínica */}
         <TabsContent value="evolution">
-          <Card>
-            <CardHeader>
-              <CardTitle>Evolução Clínica</CardTitle>
-              <CardDescription>
-                Análise da progressão clínica baseada nas sessões registradas
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground text-center py-12">
-                Funcionalidade de evolução clínica em desenvolvimento
-              </p>
-            </CardContent>
-          </Card>
+          <PatientEvolutionTab patientId={patient.id} showNames={showNames} />
         </TabsContent>
       </Tabs>
 
