@@ -80,18 +80,20 @@ export default function SessionsPage() {
         query = query.eq('patient_id', selectedPatient);
       }
 
-      // Apply date range filters
+      // Apply date range filters - use date strings for comparison
       if (startDate) {
-        query = query.gte('session_date', startDate.toISOString());
+        // Format as YYYY-MM-DD for date comparison
+        const startDateStr = format(startDate, 'yyyy-MM-dd');
+        query = query.gte('session_date', startDateStr);
       }
       if (endDate) {
-        const endOfDay = new Date(endDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        query = query.lte('session_date', endOfDay.toISOString());
+        // Format as YYYY-MM-DD and add time for end of day
+        const endDateStr = format(endDate, 'yyyy-MM-dd') + 'T23:59:59.999Z';
+        query = query.lte('session_date', endDateStr);
       }
 
-      // Apply mode filter
-      if (selectedMode !== 'all') {
+      // Apply mode filter - exact match with enum values
+      if (selectedMode && selectedMode !== 'all') {
         query = query.eq('mode', selectedMode);
       }
 
@@ -343,58 +345,82 @@ export default function SessionsPage() {
               {/* Start Date Filter */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Data Inicial</label>
-                <Popover>
-                  <PopoverTrigger asChild>
+                <div className="flex gap-1">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          'flex-1 justify-start text-left font-normal',
+                          !startDate && 'text-muted-foreground'
+                        )}
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {startDate ? format(startDate, 'dd/MM/yyyy') : 'Selecionar data'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={startDate}
+                        onSelect={setStartDate}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {startDate && (
                     <Button
-                      variant="outline"
-                      className={cn(
-                        'w-full justify-start text-left font-normal',
-                        !startDate && 'text-muted-foreground'
-                      )}
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setStartDate(undefined)}
+                      title="Limpar data inicial"
                     >
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {startDate ? format(startDate, 'dd/MM/yyyy') : 'Selecionar data'}
+                      <X className="h-4 w-4" />
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={startDate}
-                      onSelect={setStartDate}
-                      initialFocus
-                      className="pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
+                  )}
+                </div>
               </div>
 
               {/* End Date Filter */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Data Final</label>
-                <Popover>
-                  <PopoverTrigger asChild>
+                <div className="flex gap-1">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          'flex-1 justify-start text-left font-normal',
+                          !endDate && 'text-muted-foreground'
+                        )}
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {endDate ? format(endDate, 'dd/MM/yyyy') : 'Selecionar data'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={endDate}
+                        onSelect={setEndDate}
+                        initialFocus
+                        className="pointer-events-auto"
+                        disabled={(date) => startDate ? date < startDate : false}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {endDate && (
                     <Button
-                      variant="outline"
-                      className={cn(
-                        'w-full justify-start text-left font-normal',
-                        !endDate && 'text-muted-foreground'
-                      )}
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setEndDate(undefined)}
+                      title="Limpar data final"
                     >
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {endDate ? format(endDate, 'dd/MM/yyyy') : 'Selecionar data'}
+                      <X className="h-4 w-4" />
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={endDate}
-                      onSelect={setEndDate}
-                      initialFocus
-                      className="pointer-events-auto"
-                      disabled={(date) => startDate ? date < startDate : false}
-                    />
-                  </PopoverContent>
-                </Popover>
+                  )}
+                </div>
               </div>
 
               {/* Mode Filter */}
