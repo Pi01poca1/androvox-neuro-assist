@@ -132,9 +132,13 @@ export default function ReportsPage() {
   };
 
   const generateReport = async () => {
-    if (!profile?.clinic_id || !selectedPatient) return;
+    if (!profile?.clinic_id || !selectedPatient) {
+      console.log('Missing profile or patient', { clinic_id: profile?.clinic_id, selectedPatient });
+      return;
+    }
 
     setIsGenerating(true);
+    console.log('Generating report...', { reportFormat, selectedPatient, startDate, endDate });
 
     try {
       // Fetch full session data
@@ -147,9 +151,15 @@ export default function ReportsPage() {
         .lte('session_date', `${endDate}T23:59:59`)
         .order('session_date', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching sessions:', error);
+        throw error;
+      }
+
+      console.log('Sessions fetched:', sessions?.length);
 
       const reportType = reportFormat === 'complete' ? 'patient_evolution' : 'official_summary';
+      console.log('Report type:', reportType);
 
       // Call edge function
       const { data, error: fnError } = await supabase.functions.invoke('generate-report-pdf', {
@@ -165,7 +175,12 @@ export default function ReportsPage() {
         },
       });
 
-      if (fnError) throw fnError;
+      console.log('Edge function response:', { data, fnError });
+
+      if (fnError) {
+        console.error('Edge function error:', fnError);
+        throw fnError;
+      }
 
       // Open print window
       const printWindow = window.open('', '_blank');
