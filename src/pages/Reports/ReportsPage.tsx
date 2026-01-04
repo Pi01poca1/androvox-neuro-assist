@@ -140,6 +140,33 @@ export default function ReportsPage() {
     setIsGenerating(true);
     console.log('Generating report...', { reportFormat, selectedPatient, startDate, endDate });
 
+    // Open the window immediately to avoid popup blockers (must be within user gesture)
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast({
+        title: 'Pop-up bloqueado',
+        description: 'Permita pop-ups no navegador para gerar e imprimir/baixar o PDF.',
+        variant: 'destructive',
+      });
+      setIsGenerating(false);
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Gerando relatório...</title>
+        </head>
+        <body style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; padding: 24px;">
+          <h2 style="margin: 0 0 8px;">Gerando relatório...</h2>
+          <p style="margin: 0; opacity: .75;">Aguarde alguns segundos.</p>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+
     try {
       // Fetch full session data
       const { data: sessions, error } = await supabase
@@ -182,18 +209,24 @@ export default function ReportsPage() {
         throw fnError;
       }
 
-      // Open print window
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(data.html);
-        printWindow.document.close();
-        
-        printWindow.onload = () => {
-          setTimeout(() => {
-            printWindow.print();
-          }, 500);
-        };
+      const html = (data as any)?.html;
+      if (!html) {
+        throw new Error('Resposta inválida do gerador de relatório');
       }
+
+      // Render report into the already-opened window
+      printWindow.document.open();
+      printWindow.document.write(html);
+      printWindow.document.close();
+
+      setTimeout(() => {
+        try {
+          printWindow.focus();
+          printWindow.print();
+        } catch {
+          // ignore
+        }
+      }, 500);
 
       toast({
         title: 'Relatório gerado',
@@ -201,6 +234,11 @@ export default function ReportsPage() {
       });
     } catch (error) {
       console.error('Error generating report:', error);
+      try {
+        printWindow.close();
+      } catch {
+        // ignore
+      }
       toast({
         title: 'Erro ao gerar relatório',
         description: 'Não foi possível gerar o relatório. Tente novamente.',
