@@ -71,9 +71,10 @@ type PatientFormData = z.infer<typeof patientSchema>;
 interface PatientFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: (patient: any) => void;
 }
 
-export function PatientFormDialog({ open, onOpenChange }: PatientFormDialogProps) {
+export function PatientFormDialog({ open, onOpenChange, onSuccess }: PatientFormDialogProps) {
   const { profile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -152,6 +153,11 @@ export function PatientFormDialog({ open, onOpenChange }: PatientFormDialogProps
       
       // Fecha o dialog
       onOpenChange(false);
+      
+      // Callback opcional
+      if (onSuccess) {
+        onSuccess(patient);
+      }
     },
     onError: (error: Error) => {
       toast({
