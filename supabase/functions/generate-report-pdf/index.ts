@@ -91,6 +91,47 @@ function getBaseStyles(): string {
       line-height: 1.6;
       background: #ffffff;
     }
+    .professional-header {
+      border-bottom: 3px solid #16213e;
+      padding-bottom: 25px;
+      margin-bottom: 30px;
+    }
+    .clinic-name {
+      font-size: 24px;
+      font-weight: 700;
+      color: #16213e;
+      margin-bottom: 5px;
+    }
+    .professional-name {
+      font-size: 14px;
+      color: #475569;
+    }
+    .patient-info-box {
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 30px;
+    }
+    .patient-info-box h2 {
+      color: #16213e;
+      font-size: 18px;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e94560;
+    }
+    .patient-info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    .patient-info-item {
+      font-size: 13px;
+    }
+    .patient-info-item strong {
+      color: #475569;
+      font-weight: 600;
+    }
     .header {
       text-align: center;
       margin-bottom: 40px;
@@ -236,6 +277,19 @@ function getBaseStyles(): string {
       border-radius: 6px;
       border: 1px solid #e2e8f0;
     }
+    .session-number {
+      background: #16213e;
+      color: white;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      margin-right: 10px;
+    }
     @media print {
       body { padding: 20px; }
       .page-break { page-break-before: always; }
@@ -251,6 +305,14 @@ function formatDate(dateStr: string): string {
   });
 }
 
+function formatShortDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+}
+
 function formatDateTime(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('pt-BR', {
     day: '2-digit',
@@ -259,6 +321,17 @@ function formatDateTime(dateStr: string): string {
     hour: '2-digit',
     minute: '2-digit'
   });
+}
+
+function calculateAge(birthDate: string): number {
+  const today = new Date();
+  const birth = new Date(birthDate);
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
 }
 
 function getSessionTypeLabel(type: string): string {
@@ -282,13 +355,81 @@ function getModeLabel(mode: string): string {
   return modes[mode] || mode;
 }
 
+function getGenderLabel(gender: string): string {
+  const genders: Record<string, string> = {
+    'Masculino': 'Masculino',
+    'Feminino': 'Feminino',
+    'Outro': 'Outro',
+    'Não informado': 'Não informado'
+  };
+  return genders[gender] || gender || 'Não informado';
+}
+
+function generatePatientHeader(patient: any, clinicName: string, professionalName: string, dateRange?: { start: string; end: string }): string {
+  const sessions = patient?.sessions || [];
+  const sortedSessions = [...sessions].sort((a, b) => new Date(a.session_date).getTime() - new Date(b.session_date).getTime());
+  const firstSession = sortedSessions[0];
+  
+  // Get main session types
+  const typeCount: Record<string, number> = {};
+  sessions.forEach((s: any) => {
+    typeCount[s.session_type || 'outra'] = (typeCount[s.session_type || 'outra'] || 0) + 1;
+  });
+  const mainTypes = Object.entries(typeCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([type]) => getSessionTypeLabel(type));
+
+  return `
+    <div class="professional-header">
+      <div class="clinic-name">${clinicName || 'CLÍNICA'}</div>
+      <div class="professional-name">Profissional Responsável: ${professionalName || 'Não informado'}</div>
+    </div>
+
+    <div class="patient-info-box">
+      <h2>Dados do Paciente</h2>
+      <div class="patient-info-grid">
+        <div class="patient-info-item">
+          <strong>Código:</strong> ${patient?.public_id || 'N/A'}
+        </div>
+        <div class="patient-info-item">
+          <strong>Nome:</strong> ${patient?.full_name || 'Não informado'}
+        </div>
+        ${patient?.birth_date ? `
+          <div class="patient-info-item">
+            <strong>Data de Nascimento:</strong> ${formatShortDate(patient.birth_date)}
+          </div>
+          <div class="patient-info-item">
+            <strong>Idade:</strong> ${calculateAge(patient.birth_date)} anos
+          </div>
+        ` : ''}
+        <div class="patient-info-item">
+          <strong>Gênero:</strong> ${getGenderLabel(patient?.gender)}
+        </div>
+        <div class="patient-info-item">
+          <strong>Início do Acompanhamento:</strong> ${firstSession ? formatShortDate(firstSession.session_date) : (patient?.created_at ? formatShortDate(patient.created_at) : 'N/A')}
+        </div>
+        ${mainTypes.length > 0 ? `
+          <div class="patient-info-item" style="grid-column: span 2;">
+            <strong>Tipos de Intervenção:</strong> ${mainTypes.join(', ')}
+          </div>
+        ` : ''}
+        ${dateRange ? `
+          <div class="patient-info-item" style="grid-column: span 2;">
+            <strong>Período do Relatório:</strong> ${formatShortDate(dateRange.start)} a ${formatShortDate(dateRange.end)}
+          </div>
+        ` : ''}
+      </div>
+    </div>
+  `;
+}
+
 function generateProfessionalCompleteReport(data: any): string {
-  const { sessions = [], clinicName, professionalName, dateRange, statistics } = data;
+  const { sessions = [], clinicName, professionalName, dateRange } = data;
   
   const totalSessions = sessions.length;
   const uniquePatients = new Set(sessions.map((s: any) => s.patient_id)).size;
   
-  // Calculate type distribution
   const typeCount: Record<string, number> = {};
   const modeCount: Record<string, number> = {};
   const statusCount: Record<string, number> = {};
@@ -304,14 +445,18 @@ function generateProfessionalCompleteReport(data: any): string {
 <html>
 <head>
   <meta charset="utf-8">
+  <title>Relatório Clínico Completo</title>
   <style>${getBaseStyles()}</style>
 </head>
 <body>
-  <div class="header">
-    <h1>📋 Relatório Clínico Completo</h1>
-    <div class="subtitle">${clinicName || 'Clínica'}</div>
+  <div class="professional-header">
+    <div class="clinic-name">${clinicName || 'CLÍNICA'}</div>
+    <div class="professional-name">Profissional: ${professionalName || 'Não informado'}</div>
+  </div>
+
+  <div class="header" style="border-bottom: none; padding-bottom: 0; margin-bottom: 20px;">
+    <h1>Relatório Clínico Completo</h1>
     <div class="meta">
-      <strong>Profissional:</strong> ${professionalName || 'Não informado'}<br>
       ${dateRange ? `<strong>Período:</strong> ${formatDate(dateRange.start)} a ${formatDate(dateRange.end)}<br>` : ''}
       <strong>Gerado em:</strong> ${formatDateTime(new Date().toISOString())}
     </div>
@@ -332,7 +477,7 @@ function generateProfessionalCompleteReport(data: any): string {
     </div>
     <div class="stat-card">
       <h4>Taxa de Realização</h4>
-      <div class="value">${totalSessions > 0 ? Math.round(((statusCount['realizada'] || 0) / totalSessions) * 100) : 0}%</div>
+      <div class="value">${totalSessions > 0 ? Math.round(((statusCount['concluída'] || statusCount['realizada'] || 0) / totalSessions) * 100) : 0}%</div>
     </div>
   </div>
 
@@ -380,28 +525,6 @@ function generateProfessionalCompleteReport(data: any): string {
     </table>
   </div>
 
-  <div class="section">
-    <h2 class="section-title">Distribuição por Status</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Status</th>
-          <th>Quantidade</th>
-          <th>Percentual</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${Object.entries(statusCount).map(([status, count]) => `
-          <tr>
-            <td>${status === 'realizada' ? 'Realizada' : status === 'agendada' ? 'Agendada' : status === 'cancelada' ? 'Cancelada' : status}</td>
-            <td>${count}</td>
-            <td>${totalSessions > 0 ? ((count / totalSessions) * 100).toFixed(1) : 0}%</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  </div>
-
   <div class="page-break"></div>
 
   <div class="section">
@@ -412,7 +535,7 @@ function generateProfessionalCompleteReport(data: any): string {
           <div>
             <strong style="font-size: 16px; color: #16213e;">${formatDate(session.session_date)}</strong>
             <div style="font-size: 12px; color: #64748b; margin-top: 4px;">
-              Paciente: ${session.patients?.public_id || 'N/A'}
+              Paciente: ${session.patients?.public_id || session.patients?.full_name || 'N/A'}
             </div>
           </div>
           <div>
@@ -456,7 +579,6 @@ function generateProfessionalCompleteReport(data: any): string {
     <div class="confidential">⚠️ DOCUMENTO CONFIDENCIAL - SIGILO PROFISSIONAL</div>
     <p>Este relatório contém informações protegidas pelo sigilo profissional (CFP 001/2009).</p>
     <p>Uso restrito ao profissional responsável pelo atendimento.</p>
-    <p>Gerado automaticamente pelo sistema Androvox Assist</p>
   </div>
 </body>
 </html>`;
@@ -465,17 +587,15 @@ function generateProfessionalCompleteReport(data: any): string {
 function generateOfficialSummaryReport(data: any): string {
   const { sessions = [], patient, clinicName, professionalName, dateRange } = data;
   
-  const completedSessions = sessions.filter((s: any) => s.status === 'realizada');
+  const completedSessions = sessions.filter((s: any) => s.status === 'concluída' || s.status === 'realizada');
   const totalSessions = completedSessions.length;
   
-  // Get first and last session dates
   const sortedSessions = [...completedSessions].sort((a, b) => 
     new Date(a.session_date).getTime() - new Date(b.session_date).getTime()
   );
   const firstSession = sortedSessions[0];
   const lastSession = sortedSessions[sortedSessions.length - 1];
 
-  // Type distribution
   const typeCount: Record<string, number> = {};
   completedSessions.forEach((s: any) => {
     typeCount[s.session_type || 'outra'] = (typeCount[s.session_type || 'outra'] || 0) + 1;
@@ -486,7 +606,9 @@ function generateOfficialSummaryReport(data: any): string {
 <html>
 <head>
   <meta charset="utf-8">
-  <style>${getBaseStyles()}
+  <title>Relatório Oficial - ${patient?.public_id || 'Paciente'}</title>
+  <style>
+    ${getBaseStyles()}
     .official-header {
       text-align: center;
       margin-bottom: 40px;
@@ -524,14 +646,36 @@ function generateOfficialSummaryReport(data: any): string {
     <div style="font-size: 14px; color: #64748b;">Relatório Oficial de Acompanhamento</div>
   </div>
 
+  <div class="patient-info-box">
+    <h2>Identificação do Paciente</h2>
+    <div class="patient-info-grid">
+      <div class="patient-info-item">
+        <strong>Código:</strong> ${patient?.public_id || 'N/A'}
+      </div>
+      <div class="patient-info-item">
+        <strong>Nome:</strong> ${patient?.full_name || 'Não informado'}
+      </div>
+      ${patient?.birth_date ? `
+        <div class="patient-info-item">
+          <strong>Data de Nascimento:</strong> ${formatShortDate(patient.birth_date)}
+        </div>
+        <div class="patient-info-item">
+          <strong>Idade:</strong> ${calculateAge(patient.birth_date)} anos
+        </div>
+      ` : ''}
+      <div class="patient-info-item">
+        <strong>Gênero:</strong> ${getGenderLabel(patient?.gender)}
+      </div>
+    </div>
+  </div>
+
   <div class="official-box">
     <h2 style="text-align: center; color: #16213e; margin-bottom: 20px; font-size: 20px;">
       DECLARAÇÃO DE ACOMPANHAMENTO PROFISSIONAL
     </h2>
     
     <p style="text-align: justify; margin-bottom: 20px; line-height: 1.8;">
-      Declaro, para os devidos fins, que o(a) paciente identificado(a) pelo código 
-      <strong>${patient?.public_id || 'N/A'}</strong> encontra-se em acompanhamento 
+      Declaro, para os devidos fins, que o(a) paciente identificado(a) acima encontra-se em acompanhamento 
       ${totalSessions > 0 ? 'regular' : ''} nesta clínica desde 
       <strong>${firstSession ? formatDate(firstSession.session_date) : 'data não disponível'}</strong>.
     </p>
@@ -544,10 +688,17 @@ function generateOfficialSummaryReport(data: any): string {
       <table style="width: 100%;">
         <tr>
           <td style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
-            <strong>Período de Atendimento:</strong>
+            <strong>Início do Tratamento:</strong>
           </td>
           <td style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
-            ${firstSession ? formatDate(firstSession.session_date) : '-'} a 
+            ${firstSession ? formatDate(firstSession.session_date) : (patient?.created_at ? formatDate(patient.created_at) : '-')}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
+            <strong>Última Sessão:</strong>
+          </td>
+          <td style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
             ${lastSession ? formatDate(lastSession.session_date) : '-'}
           </td>
         </tr>
@@ -561,12 +712,12 @@ function generateOfficialSummaryReport(data: any): string {
         </tr>
         <tr>
           <td style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
-            <strong>Modalidades de Atendimento:</strong>
+            <strong>Tipos de Intervenção:</strong>
           </td>
           <td style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
             ${Object.entries(typeCount).map(([type, count]) => 
               `${getSessionTypeLabel(type)} (${count})`
-            ).join(', ')}
+            ).join(', ') || 'N/A'}
           </td>
         </tr>
         <tr>
@@ -601,7 +752,7 @@ function generateOfficialSummaryReport(data: any): string {
   </div>
 
   <div class="footer" style="margin-top: 80px;">
-    <p>Documento gerado eletronicamente pelo sistema Androvox Assist</p>
+    <p>Documento gerado eletronicamente</p>
     <p style="font-size: 10px; margin-top: 5px;">
       A autenticidade deste documento pode ser verificada junto à clínica emissora.
     </p>
@@ -611,11 +762,14 @@ function generateOfficialSummaryReport(data: any): string {
 }
 
 function generatePatientEvolutionReport(data: any): string {
-  const { sessions = [], patient, clinicName, professionalName } = data;
+  const { sessions = [], patient, clinicName, professionalName, dateRange } = data;
   
   const sortedSessions = [...sessions]
-    .filter((s: any) => s.status === 'realizada')
+    .filter((s: any) => s.status === 'concluída' || s.status === 'realizada')
     .sort((a, b) => new Date(a.session_date).getTime() - new Date(b.session_date).getTime());
+
+  // Add sessions to patient for header
+  const patientWithSessions = { ...patient, sessions: sortedSessions };
 
   // Group sessions by month
   const sessionsByMonth: Record<string, any[]> = {};
@@ -625,12 +779,23 @@ function generatePatientEvolutionReport(data: any): string {
     sessionsByMonth[monthKey].push(s);
   });
 
+  // Calculate duration
+  let durationText = '0 meses';
+  if (sortedSessions.length > 1) {
+    const firstDate = new Date(sortedSessions[0].session_date);
+    const lastDate = new Date(sortedSessions[sortedSessions.length - 1].session_date);
+    const months = Math.ceil((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
+    durationText = months === 1 ? '1 mês' : `${months} meses`;
+  }
+
   return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <style>${getBaseStyles()}
+  <title>Evolução Clínica - ${patient?.public_id || 'Paciente'}</title>
+  <style>
+    ${getBaseStyles()}
     .timeline {
       position: relative;
       padding-left: 30px;
@@ -672,18 +837,13 @@ function generatePatientEvolutionReport(data: any): string {
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>📈 Relatório de Evolução Clínica</h1>
-    <div class="subtitle">${clinicName || 'Clínica'}</div>
-    <div class="meta">
-      <strong>Paciente:</strong> ${patient?.public_id || 'N/A'}<br>
-      <strong>Profissional:</strong> ${professionalName || 'Não informado'}<br>
-      <strong>Gerado em:</strong> ${formatDateTime(new Date().toISOString())}
-    </div>
+  ${generatePatientHeader(patientWithSessions, clinicName, professionalName, dateRange)}
+
+  <div class="header" style="border-bottom: none; padding-bottom: 0; margin-bottom: 20px; text-align: left;">
+    <h1 style="font-size: 22px;">📈 Relatório de Evolução Clínica</h1>
   </div>
 
   <div class="section">
-    <h2 class="section-title">Visão Geral</h2>
     <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
       <div class="stat-card">
         <h4>Total de Sessões</h4>
@@ -691,17 +851,13 @@ function generatePatientEvolutionReport(data: any): string {
       </div>
       <div class="stat-card">
         <h4>Período de Acompanhamento</h4>
-        <div class="value" style="font-size: 18px;">
-          ${sortedSessions.length > 0 ? 
-            `${Math.ceil((new Date(sortedSessions[sortedSessions.length-1].session_date).getTime() - new Date(sortedSessions[0].session_date).getTime()) / (1000 * 60 * 60 * 24 * 30))} meses` 
-            : '0'}
-        </div>
+        <div class="value" style="font-size: 18px;">${durationText}</div>
       </div>
       <div class="stat-card">
         <h4>Frequência Média</h4>
         <div class="value" style="font-size: 18px;">
-          ${sortedSessions.length > 0 ? 
-            (sortedSessions.length / Object.keys(sessionsByMonth).length).toFixed(1) 
+          ${Object.keys(sessionsByMonth).length > 0 
+            ? (sortedSessions.length / Object.keys(sessionsByMonth).length).toFixed(1) 
             : '0'} /mês
         </div>
       </div>
@@ -713,31 +869,40 @@ function generatePatientEvolutionReport(data: any): string {
     <div class="timeline">
       ${Object.entries(sessionsByMonth).map(([month, monthSessions]) => `
         <div class="month-header">${month} - ${monthSessions.length} sessão(ões)</div>
-        ${monthSessions.map((session: any) => `
+        ${monthSessions.map((session: any, idx: number) => `
           <div class="timeline-item">
             <div style="font-weight: 600; color: #16213e; margin-bottom: 8px;">
+              <span class="session-number">${idx + 1}</span>
               ${formatDate(session.session_date)}
               <span class="badge badge-primary" style="margin-left: 10px;">${getSessionTypeLabel(session.session_type || 'outra')}</span>
+              <span class="badge badge-success" style="margin-left: 5px;">${getModeLabel(session.mode)}</span>
             </div>
             
             ${session.main_complaint ? `
               <div style="margin-bottom: 8px;">
-                <span style="font-weight: 600; color: #475569; font-size: 12px;">Queixa:</span>
-                <span style="font-size: 13px;"> ${session.main_complaint.substring(0, 150)}${session.main_complaint.length > 150 ? '...' : ''}</span>
+                <span style="font-weight: 600; color: #475569; font-size: 12px;">Queixa Principal:</span>
+                <p style="font-size: 13px; margin-top: 4px; padding: 8px; background: #f8fafc; border-radius: 4px;">${session.main_complaint}</p>
               </div>
             ` : ''}
             
             ${session.hypotheses ? `
               <div style="margin-bottom: 8px;">
                 <span style="font-weight: 600; color: #475569; font-size: 12px;">Hipóteses:</span>
-                <span style="font-size: 13px;"> ${session.hypotheses.substring(0, 150)}${session.hypotheses.length > 150 ? '...' : ''}</span>
+                <p style="font-size: 13px; margin-top: 4px; padding: 8px; background: #f8fafc; border-radius: 4px;">${session.hypotheses}</p>
               </div>
             ` : ''}
             
             ${session.interventions ? `
               <div style="margin-bottom: 8px;">
                 <span style="font-weight: 600; color: #475569; font-size: 12px;">Intervenções:</span>
-                <span style="font-size: 13px;"> ${session.interventions.substring(0, 150)}${session.interventions.length > 150 ? '...' : ''}</span>
+                <p style="font-size: 13px; margin-top: 4px; padding: 8px; background: #f8fafc; border-radius: 4px;">${session.interventions}</p>
+              </div>
+            ` : ''}
+
+            ${session.observations ? `
+              <div style="margin-bottom: 8px;">
+                <span style="font-weight: 600; color: #475569; font-size: 12px;">Observações:</span>
+                <p style="font-size: 13px; margin-top: 4px; padding: 8px; background: #f8fafc; border-radius: 4px;">${session.observations}</p>
               </div>
             ` : ''}
           </div>
@@ -749,7 +914,7 @@ function generatePatientEvolutionReport(data: any): string {
   <div class="footer">
     <div class="confidential">⚠️ DOCUMENTO CONFIDENCIAL - SIGILO PROFISSIONAL</div>
     <p>Este relatório é de uso exclusivo do profissional para análise clínica.</p>
-    <p>Gerado automaticamente pelo sistema Androvox Assist</p>
+    <p>Gerado em ${formatDateTime(new Date().toISOString())}</p>
   </div>
 </body>
 </html>`;
@@ -758,7 +923,6 @@ function generatePatientEvolutionReport(data: any): string {
 function generateProductivityReport(data: any): string {
   const { sessions = [], clinicName, professionalName, dateRange } = data;
   
-  // Group by week
   const sessionsByWeek: Record<string, any[]> = {};
   const sessionsByDay: Record<string, number> = {};
   const sessionsByHour: Record<number, number> = {};
@@ -779,11 +943,10 @@ function generateProductivityReport(data: any): string {
     sessionsByHour[hour] = (sessionsByHour[hour] || 0) + 1;
   });
 
-  const completedSessions = sessions.filter((s: any) => s.status === 'realizada');
+  const completedSessions = sessions.filter((s: any) => s.status === 'concluída' || s.status === 'realizada');
   const canceledSessions = sessions.filter((s: any) => s.status === 'cancelada');
   const avgDuration = sessions.reduce((sum: number, s: any) => sum + (s.scheduled_duration || 60), 0) / sessions.length || 0;
 
-  // Find peak hour
   const peakHour = Object.entries(sessionsByHour).sort((a, b) => b[1] - a[1])[0];
   const peakDay = Object.entries(sessionsByDay).sort((a, b) => b[1] - a[1])[0];
 
@@ -792,7 +955,9 @@ function generateProductivityReport(data: any): string {
 <html>
 <head>
   <meta charset="utf-8">
-  <style>${getBaseStyles()}
+  <title>Relatório de Produtividade</title>
+  <style>
+    ${getBaseStyles()}
     .kpi-row {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -820,22 +985,17 @@ function generateProductivityReport(data: any): string {
       color: #10b981;
       margin-top: 5px;
     }
-    .chart-placeholder {
-      background: #f8fafc;
-      border: 1px dashed #cbd5e1;
-      border-radius: 8px;
-      padding: 30px;
-      text-align: center;
-      color: #64748b;
-    }
   </style>
 </head>
 <body>
-  <div class="header">
+  <div class="professional-header">
+    <div class="clinic-name">${clinicName || 'CLÍNICA'}</div>
+    <div class="professional-name">Profissional: ${professionalName || 'Não informado'}</div>
+  </div>
+
+  <div class="header" style="border-bottom: none; padding-bottom: 0; margin-bottom: 20px;">
     <h1>📊 Relatório de Produtividade</h1>
-    <div class="subtitle">${clinicName || 'Clínica'}</div>
     <div class="meta">
-      <strong>Profissional:</strong> ${professionalName || 'Não informado'}<br>
       ${dateRange ? `<strong>Período:</strong> ${formatDate(dateRange.start)} a ${formatDate(dateRange.end)}<br>` : ''}
       <strong>Gerado em:</strong> ${formatDateTime(new Date().toISOString())}
     </div>
@@ -871,7 +1031,7 @@ function generateProductivityReport(data: any): string {
     </div>
     <div class="kpi-card">
       <h4>Dia Mais Produtivo</h4>
-      <div class="kpi-value" style="font-size: 24px;">${peakDay ? peakDay[0] : 'N/A'}</div>
+      <div class="kpi-value" style="font-size: 24px; text-transform: capitalize;">${peakDay ? peakDay[0] : 'N/A'}</div>
       <div class="kpi-trend">${peakDay ? `${peakDay[1]} sessões` : ''}</div>
     </div>
   </div>
@@ -885,7 +1045,7 @@ function generateProductivityReport(data: any): string {
           <th>Sessões</th>
           <th>Realizadas</th>
           <th>Canceladas</th>
-          <th>Taxa de Realização</th>
+          <th>Taxa</th>
         </tr>
       </thead>
       <tbody>
@@ -893,11 +1053,11 @@ function generateProductivityReport(data: any): string {
           .sort((a, b) => b[0].localeCompare(a[0]))
           .slice(0, 12)
           .map(([week, weekSessions]) => {
-            const realized = weekSessions.filter((s: any) => s.status === 'realizada').length;
+            const realized = weekSessions.filter((s: any) => s.status === 'concluída' || s.status === 'realizada').length;
             const canceled = weekSessions.filter((s: any) => s.status === 'cancelada').length;
             return `
               <tr>
-                <td>${formatDate(week)}</td>
+                <td>${formatShortDate(week)}</td>
                 <td>${weekSessions.length}</td>
                 <td>${realized}</td>
                 <td>${canceled}</td>
@@ -935,7 +1095,7 @@ function generateProductivityReport(data: any): string {
 
   <div class="footer">
     <p>Relatório de produtividade para análise gerencial.</p>
-    <p>Gerado automaticamente pelo sistema Androvox Assist</p>
+    <p>Gerado em ${formatDateTime(new Date().toISOString())}</p>
   </div>
 </body>
 </html>`;
