@@ -54,32 +54,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
+      (event, currentSession) => {
         console.log('Auth event:', event);
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
-        
+
         if (event === 'SIGNED_OUT') {
           setProfile(null);
           setUserRole(null);
-        } else if (event === 'SIGNED_IN' && currentSession?.user) {
-          // Load profile when user signs in
-          await loadUserProfile(currentSession.user.id);
+          return;
+        }
+
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && currentSession?.user) {
+          // Load profile in background; never block app rendering
+          void loadUserProfile(currentSession.user.id);
         }
       }
     );
 
     // THEN check for existing session and load profile
     const loadUserData = async () => {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
-      
-      if (currentSession?.user) {
-        await loadUserProfile(currentSession.user.id);
+      try {
+        const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Erro ao obter sessão:', error);
+        }
+
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+
+        if (currentSession?.user) {
+          // Load profile in background; never block app rendering
+          void loadUserProfile(currentSession.user.id);
+        }
+      } catch (err) {
+        console.error('Erro inesperado ao carregar dados do usuário:', err);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     };
 
     loadUserData();

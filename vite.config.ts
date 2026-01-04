@@ -80,7 +80,8 @@ export default defineConfig(({ mode }) => ({
         ]
       },
       devOptions: {
-        enabled: true
+        // Avoid Service Worker caching issues during development/preview
+        enabled: false,
       }
     })
   ].filter(Boolean),
