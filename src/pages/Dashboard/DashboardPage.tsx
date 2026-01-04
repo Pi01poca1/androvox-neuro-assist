@@ -15,7 +15,7 @@ import type { Patient } from '@/types/patient';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, loading: authLoading } = useAuth();
   const [isSelectPatientOpen, setIsSelectPatientOpen] = useState(false);
   const [isNewPatientOpen, setIsNewPatientOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
@@ -37,6 +37,9 @@ export default function DashboardPage() {
     },
     enabled: !!profile?.clinic_id,
   });
+
+  // Show loading state if auth is still loading
+  const dataLoading = isLoading || authLoading || !profile?.clinic_id;
 
   // Filter patients
   const filteredPatients = patients?.filter((patient) => {
@@ -203,7 +206,7 @@ export default function DashboardPage() {
             />
           </div>
 
-          {isLoading ? (
+          {dataLoading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
                 <Skeleton key={i} className="h-16 w-full" />

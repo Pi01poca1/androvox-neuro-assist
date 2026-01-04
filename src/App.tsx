@@ -99,7 +99,9 @@ const App = () => (
                 path="/new-session/:patientId"
                 element={
                   <ProtectedRoute>
-                    <NewSessionPage />
+                    <AppShell>
+                      <NewSessionPage />
+                    </AppShell>
                   </ProtectedRoute>
                 }
               />

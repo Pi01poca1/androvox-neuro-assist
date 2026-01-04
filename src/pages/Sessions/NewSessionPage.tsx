@@ -31,7 +31,7 @@ export default function NewSessionPage() {
   const [searchParams] = useSearchParams();
   const sessionType = searchParams.get('type') || 'outra';
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -44,6 +44,8 @@ export default function NewSessionPage() {
 
   // Current date/time
   const now = new Date();
+
+  const canCreateSession = !!profile?.clinic_id && !!patientId;
 
   // Fetch patient data
   const { data: patient, isLoading: patientLoading } = useQuery({
@@ -85,8 +87,8 @@ export default function NewSessionPage() {
   // Create session mutation
   const createSessionMutation = useMutation({
     mutationFn: async () => {
-      if (!profile?.clinic_id || !patientId) {
-        throw new Error('Dados incompletos');
+      if (!canCreateSession) {
+        throw new Error('Dados incompletos. Aguarde o carregamento ou faça login novamente.');
       }
 
       const { data, error } = await supabase
@@ -294,12 +296,17 @@ export default function NewSessionPage() {
                 </Button>
                 <Button 
                   onClick={handleSave}
-                  disabled={createSessionMutation.isPending}
+                  disabled={createSessionMutation.isPending || !canCreateSession}
                 >
                   {createSessionMutation.isPending ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Salvando...
+                    </>
+                  ) : !canCreateSession ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Carregando...
                     </>
                   ) : (
                     <>

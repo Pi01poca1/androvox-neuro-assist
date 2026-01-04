@@ -15,16 +15,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
+  // Function to load user profile and role
+  const loadUserProfile = async (userId: string) => {
+    console.log('Loading profile for user:', userId);
+    
+    // Add a small delay to ensure database triggers have completed
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    const [profileResult, roleResult] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single(),
+      supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .single()
+    ]);
+    
+    console.log('Profile result:', profileResult);
+    console.log('Role result:', roleResult);
+    
+    if (profileResult.data) {
+      setProfile(profileResult.data as UserProfile);
+    } else if (profileResult.error) {
+      console.error('Erro ao carregar perfil:', profileResult.error);
+    }
+    
+    if (roleResult.data) {
+      setUserRole(roleResult.data.role as AppRole);
+    } else if (roleResult.error) {
+      console.error('Erro ao carregar role:', roleResult.error);
+    }
+  };
+
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, currentSession) => {
+      async (event, currentSession) => {
+        console.log('Auth event:', event);
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
         if (event === 'SIGNED_OUT') {
           setProfile(null);
           setUserRole(null);
+        } else if (event === 'SIGNED_IN' && currentSession?.user) {
+          // Load profile when user signs in
+          await loadUserProfile(currentSession.user.id);
         }
       }
     );
@@ -36,30 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(currentSession?.user ?? null);
       
       if (currentSession?.user) {
-        const [profileResult, roleResult] = await Promise.all([
-          supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', currentSession.user.id)
-            .single(),
-          supabase
-            .from('user_roles')
-            .select('role')
-            .eq('user_id', currentSession.user.id)
-            .single()
-        ]);
-        
-        if (profileResult.data) {
-          setProfile(profileResult.data as UserProfile);
-        } else if (profileResult.error) {
-          console.error('Erro ao carregar perfil:', profileResult.error);
-        }
-        
-        if (roleResult.data) {
-          setUserRole(roleResult.data.role as AppRole);
-        } else if (roleResult.error) {
-          console.error('Erro ao carregar role:', roleResult.error);
-        }
+        await loadUserProfile(currentSession.user.id);
       }
       
       setLoading(false);
