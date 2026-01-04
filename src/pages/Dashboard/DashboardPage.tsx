@@ -4,18 +4,19 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
-import { Plus, Users, Brain, ClipboardList, ArrowRight, User, Search } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Plus, Users, Brain, ArrowRight, User, Search, Menu, LogOut, Settings, Calendar, FileText } from 'lucide-react';
 import { PatientFormDialog } from '@/components/patients/PatientFormDialog';
 import type { Patient } from '@/types/patient';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { profile, loading: authLoading } = useAuth();
+  const { profile, loading: authLoading, signOut } = useAuth();
   const [isSelectPatientOpen, setIsSelectPatientOpen] = useState(false);
   const [isNewPatientOpen, setIsNewPatientOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
@@ -73,18 +74,57 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center p-6 bg-background">
-      <div className="w-full max-w-3xl space-y-8">
-        {/* Logo / Title */}
-        <div className="text-center space-y-2">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-4">
-            <Brain className="h-9 w-9 text-primary-foreground" />
+    <div className="min-h-screen flex flex-col bg-background">
+      {/* Header minimalista */}
+      <header className="flex items-center justify-between p-4 border-b border-border">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+            <Brain className="h-5 w-5 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">Androvox Assist</h1>
-          <p className="text-muted-foreground">
-            {profile?.full_name ? `Olá, ${profile.full_name.split(' ')[0]}` : 'Sistema de Gestão Clínica'}
-          </p>
+          <span className="font-semibold text-foreground">Androvox</span>
         </div>
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <Menu className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => navigate('/patients')}>
+              <Users className="h-4 w-4 mr-2" />
+              Pacientes
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate('/sessions')}>
+              <FileText className="h-4 w-4 mr-2" />
+              Sessões
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate('/calendar')}>
+              <Calendar className="h-4 w-4 mr-2" />
+              Calendário
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate('/settings')}>
+              <Settings className="h-4 w-4 mr-2" />
+              Configurações
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => signOut()} className="text-destructive">
+              <LogOut className="h-4 w-4 mr-2" />
+              Sair
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </header>
+
+      {/* Conteúdo central */}
+      <div className="flex-1 flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-md space-y-8">
+          {/* Saudação */}
+          <div className="text-center space-y-1">
+            <h1 className="text-2xl font-bold tracking-tight">
+              {profile?.full_name ? `Olá, ${profile.full_name.split(' ')[0]}` : 'Bem-vindo'}
+            </h1>
+            <p className="text-sm text-muted-foreground">O que deseja fazer?</p>
+          </div>
 
         {/* Main Actions */}
         {!selectedPatient ? (
@@ -162,26 +202,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Quick Links */}
-        <div className="flex justify-center gap-4 pt-4">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="text-muted-foreground"
-            onClick={() => navigate('/patients')}
-          >
-            <ClipboardList className="h-4 w-4 mr-2" />
-            Ver Pacientes
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="text-muted-foreground"
-            onClick={() => navigate('/sessions')}
-          >
-            <ClipboardList className="h-4 w-4 mr-2" />
-            Ver Sessões
-          </Button>
         </div>
       </div>
 
