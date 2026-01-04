@@ -19,6 +19,7 @@ import PatientsPage from "./pages/Patients/PatientsPage";
 import PatientDetailsPage from "./pages/Patients/PatientDetailsPage";
 import SessionsPage from "./pages/Sessions/SessionsPage";
 import SessionDetailPage from "./pages/Sessions/SessionDetailPage";
+import NewSessionPage from "./pages/Sessions/NewSessionPage";
 import CalendarPage from "./pages/Calendar/CalendarPage";
 import SettingsPage from "./pages/Settings/SettingsPage";
 import AIAssistantPage from "./pages/AI/AIAssistantPage";
@@ -91,6 +92,14 @@ const App = () => (
                     <AppShell>
                       <SessionDetailPage />
                     </AppShell>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/new-session/:patientId"
+                element={
+                  <ProtectedRoute>
+                    <NewSessionPage />
                   </ProtectedRoute>
                 }
               />
