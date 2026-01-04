@@ -104,8 +104,9 @@ export default function RegisterPage() {
     );
     
     if (!error) {
-      // Show email confirmation message
-      setEmailSent(true);
+      // With auto-confirm enabled, redirect to dashboard
+      // The auth state listener in useAuth will update the user
+      navigate('/dashboard');
     }
     
     setLoading(false);

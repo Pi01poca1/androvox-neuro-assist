@@ -75,7 +75,7 @@ interface PatientFormDialogProps {
 }
 
 export function PatientFormDialog({ open, onOpenChange, onSuccess }: PatientFormDialogProps) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [generatedId, setGeneratedId] = useState<string>('');
@@ -89,6 +89,9 @@ export function PatientFormDialog({ open, onOpenChange, onSuccess }: PatientForm
       notes_summary: '',
     },
   });
+
+  // Check if we have the required data
+  const canSubmit = !!profile?.clinic_id;
 
   // Mutation para criar paciente
   const createPatientMutation = useMutation({
@@ -272,6 +275,12 @@ export function PatientFormDialog({ open, onOpenChange, onSuccess }: PatientForm
               />
             </div>
 
+            {!canSubmit && (
+              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-sm text-destructive">
+                Aguarde... Carregando dados da clínica.
+              </div>
+            )}
+
             <DialogFooter>
               <Button
                 type="button"
@@ -281,7 +290,7 @@ export function PatientFormDialog({ open, onOpenChange, onSuccess }: PatientForm
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createPatientMutation.isPending}>
+              <Button type="submit" disabled={createPatientMutation.isPending || !canSubmit}>
                 {createPatientMutation.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
