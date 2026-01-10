@@ -755,7 +755,7 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
-        <div className="w-full max-w-md space-y-10">
+        <div className="w-full max-w-lg space-y-10">
           {/* Greeting */}
           <div className="text-center space-y-2">
             <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
@@ -764,14 +764,22 @@ export default function DashboardPage() {
             <p className="text-slate-500">O que deseja fazer?</p>
           </div>
 
-          {/* Main Actions */}
-          <div className="grid gap-4 sm:grid-cols-2">
+          {/* Main Actions - 3 columns */}
+          <div className="grid gap-4 grid-cols-3">
             <button
               onClick={() => setIsSelectPatientOpen(true)}
               className="group flex flex-col items-center justify-center gap-3 h-32 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200"
             >
               <Users className="h-8 w-8" />
-              <span className="font-semibold text-lg">Iniciar Atendimento</span>
+              <span className="font-semibold text-sm sm:text-base text-center px-2">Iniciar Atendimento</span>
+            </button>
+
+            <button
+              onClick={() => navigate('/calendar')}
+              className="group flex flex-col items-center justify-center gap-3 h-32 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200"
+            >
+              <Calendar className="h-8 w-8" />
+              <span className="font-semibold text-sm sm:text-base text-center px-2">Agenda</span>
             </button>
 
             <button
@@ -779,8 +787,33 @@ export default function DashboardPage() {
               className="group flex flex-col items-center justify-center gap-3 h-32 bg-white hover:bg-slate-50 text-slate-700 border-2 border-slate-200 hover:border-blue-300 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200"
             >
               <Plus className="h-8 w-8 text-blue-600" />
-              <span className="font-semibold text-lg">Novo Paciente</span>
+              <span className="font-semibold text-sm sm:text-base text-center px-2">Novo Paciente</span>
             </button>
+          </div>
+
+          {/* Quick Access */}
+          <div className="text-center">
+            <p className="text-xs text-slate-400 mb-3">Acesso rápido</p>
+            <div className="flex justify-center gap-3">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigate('/settings')}
+                className="text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50"
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Configurações
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigate('/sessions')}
+                className="text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Sessões
+              </Button>
+            </div>
           </div>
         </div>
       </div>
