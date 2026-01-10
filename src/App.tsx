@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "@/hooks/useAuth";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { SecurityProvider } from "@/hooks/usePrivacyMode";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
@@ -25,6 +25,13 @@ import SettingsPage from "./pages/Settings/SettingsPage";
 import AIAssistantPage from "./pages/AI/AIAssistantPage";
 import ReportsPage from "./pages/Reports/ReportsPage";
 import NotFound from "./pages/NotFound";
+
+// Smart redirect: logged in → dashboard, logged out → login
+function RootRedirect() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  return <Navigate to={user ? "/dashboard" : "/auth/login"} replace />;
+}
 
 const queryClient = new QueryClient();
 
@@ -145,7 +152,7 @@ const App = () => (
               />
 
               {/* Redirects */}
-              <Route path="/" element={<Navigate to="/auth/login" replace />} />
+              <Route path="/" element={<RootRedirect />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </SecurityProvider>
