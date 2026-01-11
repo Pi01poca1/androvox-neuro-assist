@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { SecurityProvider } from "@/hooks/usePrivacyMode";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
+import { useState } from "react";
 
 // Auth Pages
 import LoginPage from "./pages/Auth/LoginPage";
@@ -33,133 +34,135 @@ function RootRedirect() {
   return <Navigate to={user ? "/dashboard" : "/auth/login"} replace />;
 }
 
-const queryClient = new QueryClient();
+function App() {
+  const [queryClient] = useState(() => new QueryClient());
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <SecurityProvider>
-            <Routes>
-              {/* Public routes */}
-              <Route path="/auth/login" element={<LoginPage />} />
-              <Route path="/auth/register" element={<RegisterPage />} />
-              <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <SecurityProvider>
+              <Routes>
+                {/* Public routes */}
+                <Route path="/auth/login" element={<LoginPage />} />
+                <Route path="/auth/register" element={<RegisterPage />} />
+                <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
 
-              {/* Protected routes */}
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute>
-                    <DashboardPage />
-                  </ProtectedRoute>
-                }
-              />
+                {/* Protected routes */}
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <DashboardPage />
+                    </ProtectedRoute>
+                  }
+                />
 
-              {/* Patient routes */}
-              <Route
-                path="/patients"
-                element={
-                  <ProtectedRoute>
-                    <AppShell>
-                      <PatientsPage />
-                    </AppShell>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/patients/:id"
-                element={
-                  <ProtectedRoute>
-                    <AppShell>
-                      <PatientDetailsPage />
-                    </AppShell>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/sessions"
-                element={
-                  <ProtectedRoute>
-                    <AppShell>
-                      <SessionsPage />
-                    </AppShell>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/sessions/:id"
-                element={
-                  <ProtectedRoute>
-                    <AppShell>
-                      <SessionDetailPage />
-                    </AppShell>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/new-session/:patientId"
-                element={
-                  <ProtectedRoute>
-                    <AppShell>
-                      <NewSessionPage />
-                    </AppShell>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/calendar"
-                element={
-                  <ProtectedRoute>
-                    <AppShell>
-                      <CalendarPage />
-                    </AppShell>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/ai-assistant"
-                element={
-                  <ProtectedRoute>
-                    <AppShell>
-                      <AIAssistantPage />
-                    </AppShell>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/settings"
-                element={
-                  <ProtectedRoute>
-                    <AppShell>
-                      <SettingsPage />
-                    </AppShell>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/reports"
-                element={
-                  <ProtectedRoute>
-                    <AppShell>
-                      <ReportsPage />
-                    </AppShell>
-                  </ProtectedRoute>
-                }
-              />
+                {/* Patient routes */}
+                <Route
+                  path="/patients"
+                  element={
+                    <ProtectedRoute>
+                      <AppShell>
+                        <PatientsPage />
+                      </AppShell>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/patients/:id"
+                  element={
+                    <ProtectedRoute>
+                      <AppShell>
+                        <PatientDetailsPage />
+                      </AppShell>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/sessions"
+                  element={
+                    <ProtectedRoute>
+                      <AppShell>
+                        <SessionsPage />
+                      </AppShell>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/sessions/:id"
+                  element={
+                    <ProtectedRoute>
+                      <AppShell>
+                        <SessionDetailPage />
+                      </AppShell>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/new-session/:patientId"
+                  element={
+                    <ProtectedRoute>
+                      <AppShell>
+                        <NewSessionPage />
+                      </AppShell>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/calendar"
+                  element={
+                    <ProtectedRoute>
+                      <AppShell>
+                        <CalendarPage />
+                      </AppShell>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/ai-assistant"
+                  element={
+                    <ProtectedRoute>
+                      <AppShell>
+                        <AIAssistantPage />
+                      </AppShell>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <ProtectedRoute>
+                      <AppShell>
+                        <SettingsPage />
+                      </AppShell>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/reports"
+                  element={
+                    <ProtectedRoute>
+                      <AppShell>
+                        <ReportsPage />
+                      </AppShell>
+                    </ProtectedRoute>
+                  }
+                />
 
-              {/* Redirects */}
-              <Route path="/" element={<RootRedirect />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </SecurityProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+                {/* Redirects */}
+                <Route path="/" element={<RootRedirect />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </SecurityProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
 
 export default App;
