@@ -107,23 +107,82 @@ export function TeamManagement() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // Check if there's already a pending invitation for this email
+      const { data: existingInvitation } = await supabase
+        .from('secretary_invitations')
+        .select('id, status, expires_at')
+        .eq('clinic_id', profile.clinic_id)
+        .eq('email', normalizedEmail)
+        .eq('status', 'pending')
+        .single();
+
+      if (existingInvitation) {
+        const isExpired = new Date(existingInvitation.expires_at) < new Date();
+        
+        if (isExpired) {
+          // Update the expired invitation with a new token and expiry
+          const { error: updateError } = await supabase
+            .from('secretary_invitations')
+            .update({
+              expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              invited_by: user.id,
+            })
+            .eq('id', existingInvitation.id);
+          
+          if (updateError) throw updateError;
+          return { renewed: true };
+        } else {
+          throw new Error('Já existe um convite pendente para este email. Cancele o convite existente primeiro.');
+        }
+      }
+
+      // Check if email is already a team member
+      const { data: existingMember } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('clinic_id', profile.clinic_id)
+        .ilike('id', normalizedEmail)
+        .single();
+
+      // Also check through the team function
+      const teamMembers = await supabase.rpc('get_clinic_team', { _clinic_id: profile.clinic_id });
+      const isMember = teamMembers.data?.some(
+        (m: TeamMember) => m.email.toLowerCase() === normalizedEmail
+      );
+
+      if (isMember) {
+        throw new Error('Este email já pertence a um membro da equipe.');
+      }
+
       const { error } = await supabase
         .from('secretary_invitations')
         .insert({
           clinic_id: profile.clinic_id,
-          email: email.toLowerCase().trim(),
+          email: normalizedEmail,
           invited_by: user.id,
         });
       
-      if (error) throw error;
+      if (error) {
+        // Handle duplicate key specifically
+        if (error.code === '23505') {
+          throw new Error('Já existe um convite para este email. Verifique o histórico de convites.');
+        }
+        throw error;
+      }
+
+      return { renewed: false };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['secretary-invitations'] });
       setInviteEmail('');
       setIsDialogOpen(false);
       toast({
-        title: 'Convite enviado',
-        description: 'O secretário receberá instruções por email para se registrar.',
+        title: result?.renewed ? 'Convite renovado' : 'Convite enviado',
+        description: result?.renewed 
+          ? 'O convite expirado foi renovado com sucesso.'
+          : 'O secretário receberá instruções por email para se registrar.',
       });
     },
     onError: (error: Error) => {
