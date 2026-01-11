@@ -107,22 +107,31 @@ export function TeamManagement() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
+      // Fetch clinic name for the email
+      const { data: clinicData } = await supabase
+        .from('clinics')
+        .select('name')
+        .eq('id', profile.clinic_id)
+        .single();
+
       const normalizedEmail = email.toLowerCase().trim();
 
       // Check if there's already a pending invitation for this email
       const { data: existingInvitation } = await supabase
         .from('secretary_invitations')
-        .select('id, status, expires_at')
+        .select('id, status, expires_at, token')
         .eq('clinic_id', profile.clinic_id)
         .eq('email', normalizedEmail)
         .eq('status', 'pending')
         .single();
 
+      let invitationToken: string;
+
       if (existingInvitation) {
         const isExpired = new Date(existingInvitation.expires_at) < new Date();
         
         if (isExpired) {
-          // Update the expired invitation with a new token and expiry
+          // Update the expired invitation with a new expiry
           const { error: updateError } = await supabase
             .from('secretary_invitations')
             .update({
@@ -132,6 +141,24 @@ export function TeamManagement() {
             .eq('id', existingInvitation.id);
           
           if (updateError) throw updateError;
+          invitationToken = existingInvitation.token;
+          
+          // Send email for renewed invitation
+          const { data: session } = await supabase.auth.getSession();
+          const response = await supabase.functions.invoke('send-secretary-invitation', {
+            body: {
+              email: normalizedEmail,
+              clinicName: clinicData?.name || 'Clínica',
+              inviterName: profile.full_name,
+              token: invitationToken,
+            },
+          });
+
+          if (response.error) {
+            console.error('Error sending email:', response.error);
+            // Don't throw - invitation was renewed, just email failed
+          }
+
           return { renewed: true };
         } else {
           throw new Error('Já existe um convite pendente para este email. Cancele o convite existente primeiro.');
@@ -139,16 +166,8 @@ export function TeamManagement() {
       }
 
       // Check if email is already a team member
-      const { data: existingMember } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('clinic_id', profile.clinic_id)
-        .ilike('id', normalizedEmail)
-        .single();
-
-      // Also check through the team function
-      const teamMembers = await supabase.rpc('get_clinic_team', { _clinic_id: profile.clinic_id });
-      const isMember = teamMembers.data?.some(
+      const teamMembersResult = await supabase.rpc('get_clinic_team', { _clinic_id: profile.clinic_id });
+      const isMember = teamMembersResult.data?.some(
         (m: TeamMember) => m.email.toLowerCase() === normalizedEmail
       );
 
@@ -156,13 +175,16 @@ export function TeamManagement() {
         throw new Error('Este email já pertence a um membro da equipe.');
       }
 
-      const { error } = await supabase
+      // Create new invitation
+      const { data: newInvitation, error } = await supabase
         .from('secretary_invitations')
         .insert({
           clinic_id: profile.clinic_id,
           email: normalizedEmail,
           invited_by: user.id,
-        });
+        })
+        .select('token')
+        .single();
       
       if (error) {
         // Handle duplicate key specifically
@@ -170,6 +192,22 @@ export function TeamManagement() {
           throw new Error('Já existe um convite para este email. Verifique o histórico de convites.');
         }
         throw error;
+      }
+
+      // Send invitation email
+      const response = await supabase.functions.invoke('send-secretary-invitation', {
+        body: {
+          email: normalizedEmail,
+          clinicName: clinicData?.name || 'Clínica',
+          inviterName: profile.full_name,
+          token: newInvitation.token,
+        },
+      });
+
+      if (response.error) {
+        console.error('Error sending email:', response.error);
+        // Invitation created but email failed - notify user
+        throw new Error('Convite criado, mas houve erro ao enviar o email. Tente reenviar.');
       }
 
       return { renewed: false };
