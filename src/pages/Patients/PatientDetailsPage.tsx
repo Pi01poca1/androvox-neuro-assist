@@ -1,11 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
 import { usePrivacyMode } from '@/hooks/usePrivacyMode';
 import { usePermissions } from '@/hooks/usePermissions';
-import { Patient } from '@/types/patient';
+import { getPatientById, type LocalPatient } from '@/lib/localDb';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,31 +27,45 @@ export default function PatientDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const { privacyMode, usbStatus, isOnline } = usePrivacyMode();
+  const { privacyMode, usbStatus } = usePrivacyMode();
   const permissions = usePermissions();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  const showNames = privacyMode === 'NOME' && usbStatus === 'present' && !isOnline;
+  // Local data states
+  const [patient, setPatient] = useState<LocalPatient | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Carregar dados do paciente
-  const { data: patient, isLoading } = useQuery({
-    queryKey: ['patient', id],
-    queryFn: async () => {
-      if (!id) throw new Error('ID do paciente não fornecido');
+  const showNames = privacyMode === 'NOME' && usbStatus === 'present';
 
-      const { data, error } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('id', id)
-        .single();
+  // Load patient from local DB
+  useEffect(() => {
+    const loadPatient = async () => {
+      if (!id) {
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const data = await getPatientById(id);
+        setPatient(data || null);
+      } catch (error) {
+        console.error('Error loading patient:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadPatient();
+  }, [id]);
 
-      if (error) throw error;
-      return data as Patient;
-    },
-    enabled: !!id,
-  });
+  // Refresh patient data when edit dialog closes
+  const handleEditDialogChange = async (open: boolean) => {
+    setIsEditDialogOpen(open);
+    if (!open && id) {
+      const data = await getPatientById(id);
+      setPatient(data || null);
+    }
+  };
 
-  // Calcular idade se data de nascimento existir
+  // Calculate age if birth date exists
   const calculateAge = (birthDate: string | null) => {
     if (!birthDate) return null;
     const today = new Date();
@@ -142,7 +154,7 @@ export default function PatientDetailsPage() {
               <div>
                 <h3 className="font-semibold text-sm">Modo Nome Ativo</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Informações identificáveis visíveis. Sistema em modo offline com chave USB.
+                  Informações identificáveis visíveis. Chave USB presente.
                 </p>
               </div>
             </div>
@@ -276,7 +288,7 @@ export default function PatientDetailsPage() {
         <PatientEditDialog
           patient={patient}
           open={isEditDialogOpen}
-          onOpenChange={setIsEditDialogOpen}
+          onOpenChange={handleEditDialogChange}
         />
       )}
     </div>
