@@ -1,6 +1,11 @@
-import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { 
+  getSessionsByClinic, 
+  getPatientsByClinic,
+  type LocalSession,
+  type LocalPatient,
+} from '@/lib/localDb';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,43 +15,64 @@ import { SessionEditDialog } from '@/components/sessions/SessionEditDialog';
 import { ChevronLeft, ChevronRight, Plus, Clock } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import type { Session } from '@/types/session';
 import { toast } from 'sonner';
 
+interface SessionWithPatient extends LocalSession {
+  patients?: LocalPatient;
+}
+
 export default function CalendarPage() {
+  const { clinicId } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [selectedSession, setSelectedSession] = useState<SessionWithPatient | null>(null);
   
-  const queryClient = useQueryClient();
+  const [sessions, setSessions] = useState<SessionWithPatient[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch sessions for the current month
-  const { data: sessions = [], isLoading } = useQuery({
-    queryKey: ['sessions-calendar', currentMonth],
-    queryFn: async () => {
+  const loadData = async () => {
+    if (!clinicId) return;
+    
+    setIsLoading(true);
+    try {
+      const [sessionsData, patientsData] = await Promise.all([
+        getSessionsByClinic(clinicId),
+        getPatientsByClinic(clinicId),
+      ]);
+      
+      // Filter sessions for current month
       const start = startOfMonth(currentMonth);
       const end = endOfMonth(currentMonth);
       
-      const { data, error } = await supabase
-        .from('sessions')
-        .select(`
-          *,
-          patients (
-            id,
-            public_id,
-            full_name
-          )
-        `)
-        .gte('session_date', start.toISOString())
-        .lte('session_date', end.toISOString())
-        .order('session_date', { ascending: true });
+      const filteredSessions = sessionsData.filter(session => {
+        const sessionDate = new Date(session.session_date);
+        return sessionDate >= start && sessionDate <= end;
+      });
+      
+      // Join with patient data
+      const sessionsWithPatients: SessionWithPatient[] = filteredSessions.map(session => ({
+        ...session,
+        patients: patientsData.find(p => p.id === session.patient_id),
+      }));
+      
+      // Sort by date
+      sessionsWithPatients.sort((a, b) => 
+        new Date(a.session_date).getTime() - new Date(b.session_date).getTime()
+      );
+      
+      setSessions(sessionsWithPatients);
+    } catch (error) {
+      console.error('Error loading sessions:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-      if (error) throw error;
-      return data as Session[];
-    },
-  });
+  useEffect(() => {
+    loadData();
+  }, [clinicId, currentMonth]);
 
   // Get sessions for a specific date
   const getSessionsForDate = (date: Date) => {
@@ -70,25 +96,25 @@ export default function CalendarPage() {
     setIsCreateDialogOpen(true);
   };
 
-  const handleEditSession = (session: Session) => {
+  const handleEditSession = (session: SessionWithPatient) => {
     setSelectedSession(session);
     setIsEditDialogOpen(true);
   };
 
   const handleCreateSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ['sessions-calendar'] });
+    loadData();
     setIsCreateDialogOpen(false);
     toast.success('Sessão criada com sucesso');
   };
 
   const handleEditSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ['sessions-calendar'] });
+    loadData();
     setIsEditDialogOpen(false);
     setSelectedSession(null);
     toast.success('Sessão atualizada com sucesso');
   };
 
-  const getStatusBadgeVariant = (status: string) => {
+  const getStatusBadgeVariant = (status: string | null) => {
     switch (status) {
       case 'agendada':
         return 'default';
@@ -101,7 +127,7 @@ export default function CalendarPage() {
     }
   };
 
-  const getStatusLabel = (status: string) => {
+  const getStatusLabel = (status: string | null) => {
     switch (status) {
       case 'agendada':
         return 'Agendada';
@@ -110,7 +136,7 @@ export default function CalendarPage() {
       case 'cancelada':
         return 'Cancelada';
       default:
-        return status;
+        return status || 'Não definido';
     }
   };
 
@@ -222,8 +248,8 @@ export default function CalendarPage() {
                           )}
                         </div>
                       </div>
-                      <Badge variant={getStatusBadgeVariant(session.status || 'agendada')} className="text-xs">
-                        {getStatusLabel(session.status || 'agendada')}
+                      <Badge variant={getStatusBadgeVariant(session.status)} className="text-xs">
+                        {getStatusLabel(session.status)}
                       </Badge>
                     </div>
                     {session.main_complaint && (
@@ -263,7 +289,7 @@ export default function CalendarPage() {
         <SessionEditDialog
           open={isEditDialogOpen}
           onOpenChange={setIsEditDialogOpen}
-          session={selectedSession}
+          session={selectedSession as any}
           onSuccess={handleEditSuccess}
         />
       )}

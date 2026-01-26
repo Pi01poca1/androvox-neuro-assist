@@ -1,9 +1,15 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabaseClient';
+import { useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 import { usePrivacyMode } from '@/hooks/usePrivacyMode';
+import { 
+  updateSession,
+  createSessionHistory,
+  type LocalSession,
+  type LocalPatient,
+} from '@/lib/localDb';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -31,9 +37,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
-import { Loader2, Sparkles } from 'lucide-react';
-import type { Session } from '@/types/session';
-import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 const sessionEditSchema = z.object({
   session_date: z.string().min(1, { message: 'Data da sessão é obrigatória' }),
@@ -51,18 +55,21 @@ const sessionEditSchema = z.object({
 
 type SessionEditValues = z.infer<typeof sessionEditSchema>;
 
+interface SessionWithPatient extends LocalSession {
+  patients?: LocalPatient;
+}
+
 interface SessionEditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  session: Session | null;
+  session: SessionWithPatient | null;
   onSuccess: () => void;
 }
 
 export function SessionEditDialog({ open, onOpenChange, session, onSuccess }: SessionEditDialogProps) {
+  const { user, clinicId } = useAuth();
   const { showNames } = usePrivacyMode();
-  const queryClient = useQueryClient();
-  const [isGeneratingHypotheses, setIsGeneratingHypotheses] = useState(false);
-  const [isGeneratingInterventions, setIsGeneratingInterventions] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<SessionEditValues>({
     resolver: zodResolver(sessionEditSchema),
@@ -77,95 +84,80 @@ export function SessionEditDialog({ open, onOpenChange, session, onSuccess }: Se
     } : undefined,
   });
 
-  const updateSessionMutation = useMutation({
-    mutationFn: async (values: SessionEditValues) => {
-      if (!session) throw new Error('Sessão não encontrada');
+  const onSubmit = async (values: SessionEditValues) => {
+    if (!session || !clinicId) {
+      toast({
+        title: 'Erro',
+        description: 'Sessão não encontrada',
+        variant: 'destructive',
+      });
+      return;
+    }
 
-      const { data, error } = await supabase
-        .from('sessions')
-        .update({
-          session_date: values.session_date,
-          mode: values.mode,
-          session_type: values.session_type,
-          main_complaint: values.main_complaint || null,
-          hypotheses: values.hypotheses || null,
-          interventions: values.interventions || null,
-          observations: values.observations || null,
-        })
-        .eq('id', session.id)
-        .select()
-        .single();
+    setIsSubmitting(true);
+    try {
+      // Track changes for history
+      const changes: { field: string; old: string | null; new: string | null }[] = [];
+      
+      if (session.session_date.split('T')[0] !== values.session_date) {
+        changes.push({ field: 'session_date', old: session.session_date, new: values.session_date });
+      }
+      if (session.mode !== values.mode) {
+        changes.push({ field: 'mode', old: session.mode, new: values.mode });
+      }
+      if (session.session_type !== values.session_type) {
+        changes.push({ field: 'session_type', old: session.session_type, new: values.session_type });
+      }
+      if (session.main_complaint !== (values.main_complaint || null)) {
+        changes.push({ field: 'main_complaint', old: session.main_complaint, new: values.main_complaint || null });
+      }
+      if (session.hypotheses !== (values.hypotheses || null)) {
+        changes.push({ field: 'hypotheses', old: session.hypotheses, new: values.hypotheses || null });
+      }
+      if (session.interventions !== (values.interventions || null)) {
+        changes.push({ field: 'interventions', old: session.interventions, new: values.interventions || null });
+      }
+      if (session.observations !== (values.observations || null)) {
+        changes.push({ field: 'observations', old: session.observations, new: values.observations || null });
+      }
 
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
+      await updateSession(session.id, {
+        session_date: values.session_date,
+        mode: values.mode,
+        session_type: values.session_type,
+        main_complaint: values.main_complaint || null,
+        hypotheses: values.hypotheses || null,
+        interventions: values.interventions || null,
+        observations: values.observations || null,
+      });
+
+      // Create history entries for each change
+      for (const change of changes) {
+        await createSessionHistory({
+          session_id: session.id,
+          clinic_id: clinicId,
+          changed_by: user?.id || 'sistema',
+          change_type: 'updated',
+          field_name: change.field,
+          old_value: change.old,
+          new_value: change.new,
+        });
+      }
+
       toast({
         title: 'Sessão atualizada',
         description: 'As alterações foram salvas com sucesso.',
       });
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
       onSuccess();
-    },
-    onError: (error) => {
-      toast({
-        title: 'Erro ao atualizar sessão',
-        description: error.message,
-        variant: 'destructive',
-      });
-    },
-  });
-
-  const generateSuggestion = async (type: 'hypotheses' | 'interventions') => {
-    if (!session) return;
-
-    const values = form.getValues();
-    
-    if (type === 'hypotheses') setIsGeneratingHypotheses(true);
-    else setIsGeneratingInterventions(true);
-
-    try {
-      const { data, error } = await supabase.functions.invoke('generate-session-suggestions', {
-        body: {
-          sessionData: {
-            patientId: session.patients?.public_id,
-            mode: values.mode,
-            mainComplaint: values.main_complaint,
-            observations: values.observations,
-            interventions: values.interventions,
-            hypotheses: values.hypotheses,
-          },
-          suggestionType: type,
-        },
-      });
-
-      if (error) throw error;
-
-      const currentValue = type === 'hypotheses' ? values.hypotheses : values.interventions;
-      const newValue = currentValue 
-        ? `${currentValue}\n\n--- Sugestões de IA ---\n${data.suggestion}`
-        : data.suggestion;
-
-      form.setValue(type, newValue);
-      
-      toast({
-        title: 'Sugestões geradas',
-        description: 'As sugestões de IA foram adicionadas ao campo.',
-      });
     } catch (error) {
       toast({
-        title: 'Erro ao gerar sugestões',
+        title: 'Erro ao atualizar sessão',
         description: error instanceof Error ? error.message : 'Erro desconhecido',
         variant: 'destructive',
       });
     } finally {
-      if (type === 'hypotheses') setIsGeneratingHypotheses(false);
-      else setIsGeneratingInterventions(false);
+      setIsSubmitting(false);
     }
-  };
-
-  const onSubmit = (values: SessionEditValues) => {
-    updateSessionMutation.mutate(values);
   };
 
   if (!session) return null;
@@ -272,28 +264,7 @@ export function SessionEditDialog({ open, onOpenChange, session, onSuccess }: Se
               name="hypotheses"
               render={({ field }) => (
                 <FormItem>
-                  <div className="flex items-center justify-between">
-                    <FormLabel>Hipóteses Diagnósticas</FormLabel>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => generateSuggestion('hypotheses')}
-                      disabled={isGeneratingHypotheses}
-                    >
-                      {isGeneratingHypotheses ? (
-                        <>
-                          <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                          Gerando...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="mr-2 h-3 w-3" />
-                          Sugestões IA
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                  <FormLabel>Hipóteses Diagnósticas</FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="Registre as hipóteses diagnósticas levantadas..."
@@ -311,28 +282,7 @@ export function SessionEditDialog({ open, onOpenChange, session, onSuccess }: Se
               name="interventions"
               render={({ field }) => (
                 <FormItem>
-                  <div className="flex items-center justify-between">
-                    <FormLabel>Intervenções Realizadas</FormLabel>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => generateSuggestion('interventions')}
-                      disabled={isGeneratingInterventions}
-                    >
-                      {isGeneratingInterventions ? (
-                        <>
-                          <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                          Gerando...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="mr-2 h-3 w-3" />
-                          Sugestões IA
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                  <FormLabel>Intervenções Realizadas</FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="Descreva as intervenções terapêuticas aplicadas..."
@@ -368,12 +318,12 @@ export function SessionEditDialog({ open, onOpenChange, session, onSuccess }: Se
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={updateSessionMutation.isPending}
+                disabled={isSubmitting}
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={updateSessionMutation.isPending}>
-                {updateSessionMutation.isPending && (
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Salvar Alterações

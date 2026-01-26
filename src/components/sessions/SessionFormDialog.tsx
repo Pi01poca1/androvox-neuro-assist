@@ -1,10 +1,15 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabaseClient';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePrivacyMode } from '@/hooks/usePrivacyMode';
+import { 
+  getPatientsByClinic, 
+  createSession,
+  createSessionHistory,
+  type LocalPatient,
+} from '@/lib/localDb';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -32,11 +37,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/hooks/use-toast';
-import { Loader2, Sparkles } from 'lucide-react';
-import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 const sessionFormSchema = z.object({
-  patient_id: z.string().uuid({ message: 'Selecione um paciente' }),
+  patient_id: z.string().min(1, { message: 'Selecione um paciente' }),
   session_date: z.string().min(1, { message: 'Data da sessão é obrigatória' }),
   session_time: z.string().optional(),
   session_type: z.enum(['anamnese', 'avaliacao_neuropsicologica', 'tcc', 'intervencao_neuropsicologica', 'retorno', 'outra'], {
@@ -64,10 +68,10 @@ interface SessionFormDialogProps {
 }
 
 export function SessionFormDialog({ open, onOpenChange, onSuccess }: SessionFormDialogProps) {
-  const { profile } = useAuth();
+  const { user, clinicId } = useAuth();
   const { showNames } = usePrivacyMode();
-  const [isGeneratingHypotheses, setIsGeneratingHypotheses] = useState(false);
-  const [isGeneratingInterventions, setIsGeneratingInterventions] = useState(false);
+  const [patients, setPatients] = useState<LocalPatient[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<SessionFormValues>({
     resolver: zodResolver(sessionFormSchema),
@@ -85,129 +89,83 @@ export function SessionFormDialog({ open, onOpenChange, onSuccess }: SessionForm
     },
   });
 
-  const { data: patients } = useQuery({
-    queryKey: ['patients-for-session'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('patients')
-        .select('id, public_id, full_name')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: open,
-  });
-
-  const createSessionMutation = useMutation({
-    mutationFn: async (values: SessionFormValues) => {
-      if (!profile?.clinic_id) {
-        throw new Error('Clínica não encontrada');
+  useEffect(() => {
+    const loadPatients = async () => {
+      if (!clinicId || !open) return;
+      
+      try {
+        const data = await getPatientsByClinic(clinicId);
+        setPatients(data.sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        ));
+      } catch (error) {
+        console.error('Error loading patients:', error);
       }
+    };
 
+    loadPatients();
+  }, [clinicId, open]);
+
+  const onSubmit = async (values: SessionFormValues) => {
+    if (!clinicId) {
+      toast({
+        title: 'Erro',
+        description: 'Clínica não encontrada',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
       // Combine date and time
       let sessionDateTime = values.session_date;
       if (values.session_time && values.status === 'agendada') {
         sessionDateTime = `${values.session_date}T${values.session_time}:00`;
       }
 
-      const { data, error } = await supabase
-        .from('sessions')
-        .insert([{
-          patient_id: values.patient_id,
-          session_date: sessionDateTime,
-          session_type: values.session_type,
-          status: values.status,
-          mode: values.mode,
-          scheduled_duration: values.scheduled_duration,
-          main_complaint: values.main_complaint || null,
-          hypotheses: values.hypotheses || null,
-          interventions: values.interventions || null,
-          observations: values.observations || null,
-          clinic_id: profile.clinic_id,
-          created_by: profile.id,
-        }])
-        .select()
-        .single();
+      const session = await createSession({
+        patient_id: values.patient_id,
+        session_date: sessionDateTime,
+        session_type: values.session_type,
+        status: values.status,
+        mode: values.mode,
+        scheduled_duration: values.scheduled_duration,
+        main_complaint: values.main_complaint || null,
+        hypotheses: values.hypotheses || null,
+        interventions: values.interventions || null,
+        observations: values.observations || null,
+        clinic_id: clinicId,
+        created_by: user?.id || null,
+        ai_suggestions: null,
+      });
 
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
+      // Create history entry
+      await createSessionHistory({
+        session_id: session.id,
+        clinic_id: clinicId,
+        changed_by: user?.id || 'sistema',
+        change_type: 'created',
+        field_name: null,
+        old_value: null,
+        new_value: null,
+      });
+
       toast({
         title: 'Sessão registrada',
         description: 'A sessão clínica foi registrada com sucesso.',
       });
       form.reset();
       onSuccess();
-    },
-    onError: (error) => {
-      toast({
-        title: 'Erro ao registrar sessão',
-        description: error.message,
-        variant: 'destructive',
-      });
-    },
-  });
-
-  const generateSuggestion = async (type: 'hypotheses' | 'interventions') => {
-    const values = form.getValues();
-    const selectedPatient = patients?.find(p => p.id === values.patient_id);
-    
-    if (!selectedPatient) {
-      toast({
-        title: 'Selecione um paciente',
-        description: 'Selecione um paciente para gerar sugestões.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (type === 'hypotheses') setIsGeneratingHypotheses(true);
-    else setIsGeneratingInterventions(true);
-
-    try {
-      const { data, error } = await supabase.functions.invoke('generate-session-suggestions', {
-        body: {
-          sessionData: {
-            patientId: selectedPatient.public_id,
-            mode: values.mode,
-            mainComplaint: values.main_complaint,
-            observations: values.observations,
-            interventions: values.interventions,
-            hypotheses: values.hypotheses,
-          },
-          suggestionType: type,
-        },
-      });
-
-      if (error) throw error;
-
-      const currentValue = type === 'hypotheses' ? values.hypotheses : values.interventions;
-      const newValue = currentValue 
-        ? `${currentValue}\n\n--- Sugestões de IA ---\n${data.suggestion}`
-        : data.suggestion;
-
-      form.setValue(type, newValue);
-      
-      toast({
-        title: 'Sugestões geradas',
-        description: 'As sugestões de IA foram adicionadas ao campo.',
-      });
     } catch (error) {
       toast({
-        title: 'Erro ao gerar sugestões',
+        title: 'Erro ao registrar sessão',
         description: error instanceof Error ? error.message : 'Erro desconhecido',
         variant: 'destructive',
       });
     } finally {
-      if (type === 'hypotheses') setIsGeneratingHypotheses(false);
-      else setIsGeneratingInterventions(false);
+      setIsSubmitting(false);
     }
-  };
-
-  const onSubmit = (values: SessionFormValues) => {
-    createSessionMutation.mutate(values);
   };
 
   return (
@@ -337,28 +295,7 @@ export function SessionFormDialog({ open, onOpenChange, onSuccess }: SessionForm
               name="hypotheses"
               render={({ field }) => (
                 <FormItem>
-                  <div className="flex items-center justify-between">
-                    <FormLabel>Hipóteses Diagnósticas</FormLabel>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => generateSuggestion('hypotheses')}
-                      disabled={isGeneratingHypotheses || !form.watch('patient_id')}
-                    >
-                      {isGeneratingHypotheses ? (
-                        <>
-                          <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                          Gerando...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="mr-2 h-3 w-3" />
-                          Sugestões IA
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                  <FormLabel>Hipóteses Diagnósticas</FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="Registre as hipóteses diagnósticas levantadas..."
@@ -376,28 +313,7 @@ export function SessionFormDialog({ open, onOpenChange, onSuccess }: SessionForm
               name="interventions"
               render={({ field }) => (
                 <FormItem>
-                  <div className="flex items-center justify-between">
-                    <FormLabel>Intervenções Realizadas</FormLabel>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => generateSuggestion('interventions')}
-                      disabled={isGeneratingInterventions || !form.watch('patient_id')}
-                    >
-                      {isGeneratingInterventions ? (
-                        <>
-                          <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                          Gerando...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="mr-2 h-3 w-3" />
-                          Sugestões IA
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                  <FormLabel>Intervenções Realizadas</FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="Descreva as intervenções terapêuticas aplicadas..."
@@ -433,12 +349,12 @@ export function SessionFormDialog({ open, onOpenChange, onSuccess }: SessionForm
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={createSessionMutation.isPending}
+                disabled={isSubmitting}
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createSessionMutation.isPending}>
-                {createSessionMutation.isPending && (
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Registrar Sessão
