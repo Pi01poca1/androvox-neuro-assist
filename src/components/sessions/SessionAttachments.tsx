@@ -1,24 +1,20 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
+import { 
+  createSessionAttachment, 
+  deleteAttachment,
+  generateUUID,
+  type LocalSessionAttachment,
+} from '@/lib/localDb';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 import { Upload, X, File, Loader2, FileText, Image as ImageIcon } from 'lucide-react';
 
-interface SessionAttachment {
-  id: string;
-  file_name: string;
-  file_path: string;
-  file_type: string;
-  file_size: number;
-  uploaded_at: string;
-}
-
 interface SessionAttachmentsProps {
   sessionId: string;
-  attachments: SessionAttachment[];
+  attachments: LocalSessionAttachment[];
+  onUpdate?: () => void;
 }
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -30,135 +26,118 @@ const ALLOWED_TYPES = [
   'image/webp',
 ];
 
-export function SessionAttachments({ sessionId, attachments }: SessionAttachmentsProps) {
-  const { profile } = useAuth();
-  const queryClient = useQueryClient();
+export function SessionAttachments({ sessionId, attachments, onUpdate }: SessionAttachmentsProps) {
+  const { user, clinicId } = useAuth();
   const [uploading, setUploading] = useState(false);
+  const [localAttachments, setLocalAttachments] = useState<LocalSessionAttachment[]>(attachments);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
-  const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
-      if (!profile?.clinic_id) throw new Error('Clínica não encontrada');
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    if (!clinicId || !user) {
+      toast({
+        title: 'Erro',
+        description: 'Usuário não autenticado',
+        variant: 'destructive',
+      });
+      return;
+    }
 
+    setUploading(true);
+    
+    for (const file of Array.from(files)) {
       // Validate file
       if (!ALLOWED_TYPES.includes(file.type)) {
-        throw new Error('Tipo de arquivo não permitido. Use PDF ou imagens (JPG, PNG, WEBP).');
+        toast({
+          title: 'Tipo de arquivo não permitido',
+          description: 'Use PDF ou imagens (JPG, PNG, WEBP).',
+          variant: 'destructive',
+        });
+        continue;
       }
 
       if (file.size > MAX_FILE_SIZE) {
-        throw new Error('Arquivo muito grande. Tamanho máximo: 10MB.');
+        toast({
+          title: 'Arquivo muito grande',
+          description: 'Tamanho máximo: 10MB.',
+          variant: 'destructive',
+        });
+        continue;
       }
 
-      // Create unique file path
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `${profile.clinic_id}/${sessionId}/${fileName}`;
-
-      // Upload to storage
-      const { error: uploadError } = await supabase.storage
-        .from('session-attachments')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
-
-      if (uploadError) throw uploadError;
-
-      // Save metadata to database
-      const { error: dbError } = await supabase
-        .from('session_attachments')
-        .insert({
+      try {
+        // Read file as ArrayBuffer for local storage
+        const fileData = await file.arrayBuffer();
+        const filePath = `local/${sessionId}/${generateUUID()}_${file.name}`;
+        
+        const attachment = await createSessionAttachment({
           session_id: sessionId,
-          clinic_id: profile.clinic_id,
+          clinic_id: clinicId,
           file_name: file.name,
           file_path: filePath,
           file_type: file.type,
           file_size: file.size,
-          uploaded_by: profile.id,
+          file_data: fileData,
+          uploaded_by: user.id,
         });
 
-      if (dbError) {
-        // Clean up uploaded file if database insert fails
-        await supabase.storage.from('session-attachments').remove([filePath]);
-        throw dbError;
+        setLocalAttachments(prev => [...prev, attachment]);
+        
+        toast({
+          title: 'Arquivo anexado',
+          description: `${file.name} foi anexado com sucesso.`,
+        });
+      } catch (error) {
+        toast({
+          title: 'Erro ao anexar arquivo',
+          description: error instanceof Error ? error.message : 'Erro desconhecido',
+          variant: 'destructive',
+        });
       }
+    }
+    
+    setUploading(false);
+    event.target.value = ''; // Reset input
+    onUpdate?.();
+  };
 
-      return { fileName: file.name };
-    },
-    onSuccess: (data) => {
-      toast({
-        title: 'Arquivo enviado',
-        description: `${data.fileName} foi anexado com sucesso.`,
-      });
-      queryClient.invalidateQueries({ queryKey: ['session-detail', sessionId] });
-    },
-    onError: (error) => {
-      toast({
-        title: 'Erro ao enviar arquivo',
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
-        variant: 'destructive',
-      });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (attachment: SessionAttachment) => {
-      // Delete from storage
-      const { error: storageError } = await supabase.storage
-        .from('session-attachments')
-        .remove([attachment.file_path]);
-
-      if (storageError) throw storageError;
-
-      // Delete from database
-      const { error: dbError } = await supabase
-        .from('session_attachments')
-        .delete()
-        .eq('id', attachment.id);
-
-      if (dbError) throw dbError;
-
-      return attachment;
-    },
-    onSuccess: (attachment) => {
+  const handleDelete = async (attachment: LocalSessionAttachment) => {
+    setIsDeleting(attachment.id);
+    try {
+      await deleteAttachment(attachment.id);
+      setLocalAttachments(prev => prev.filter(a => a.id !== attachment.id));
+      
       toast({
         title: 'Arquivo removido',
         description: `${attachment.file_name} foi removido.`,
       });
-      queryClient.invalidateQueries({ queryKey: ['session-detail', sessionId] });
-    },
-    onError: (error) => {
+      onUpdate?.();
+    } catch (error) {
       toast({
         title: 'Erro ao remover arquivo',
         description: error instanceof Error ? error.message : 'Erro desconhecido',
         variant: 'destructive',
       });
-    },
-  });
-
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
-
-    setUploading(true);
-    
-    for (const file of Array.from(files)) {
-      await uploadMutation.mutateAsync(file);
+    } finally {
+      setIsDeleting(null);
     }
-    
-    setUploading(false);
-    event.target.value = ''; // Reset input
   };
 
-  const downloadFile = async (attachment: SessionAttachment) => {
+  const downloadFile = (attachment: LocalSessionAttachment) => {
     try {
-      const { data, error } = await supabase.storage
-        .from('session-attachments')
-        .download(attachment.file_path);
+      if (!attachment.file_data) {
+        toast({
+          title: 'Erro',
+          description: 'Dados do arquivo não encontrados',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-      if (error) throw error;
-
-      // Create download link
-      const url = URL.createObjectURL(data);
+      // Create download link from stored ArrayBuffer
+      const blob = new Blob([attachment.file_data], { type: attachment.file_type });
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = attachment.file_name;
@@ -223,9 +202,9 @@ export function SessionAttachments({ sessionId, attachments }: SessionAttachment
       </div>
 
       {/* Attachments List */}
-      {attachments && attachments.length > 0 && (
+      {localAttachments && localAttachments.length > 0 && (
         <div className="space-y-2">
-          {attachments.map((attachment) => (
+          {localAttachments.map((attachment) => (
             <Card key={attachment.id}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -256,10 +235,14 @@ export function SessionAttachments({ sessionId, attachments }: SessionAttachment
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => deleteMutation.mutate(attachment)}
-                      disabled={deleteMutation.isPending}
+                      onClick={() => handleDelete(attachment)}
+                      disabled={isDeleting === attachment.id}
                     >
-                      <X className="h-4 w-4 text-destructive" />
+                      {isDeleting === attachment.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <X className="h-4 w-4 text-destructive" />
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -269,7 +252,7 @@ export function SessionAttachments({ sessionId, attachments }: SessionAttachment
         </div>
       )}
 
-      {(!attachments || attachments.length === 0) && (
+      {(!localAttachments || localAttachments.length === 0) && (
         <p className="text-sm text-muted-foreground text-center py-6">
           Nenhum arquivo anexado
         </p>

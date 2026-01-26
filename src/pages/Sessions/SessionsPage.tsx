@@ -1,9 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabaseClient';
+import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '@/hooks/usePermissions';
 import { usePrivacyMode } from '@/hooks/usePrivacyMode';
+import { 
+  getPatientsByClinic, 
+  getSessionsByClinic,
+  deleteSession as deleteLocalSession,
+  type LocalSession,
+  type LocalPatient,
+} from '@/lib/localDb';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +24,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import jsPDF from 'jspdf';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,116 +35,94 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import type { Session } from '@/types/session';
-import type { Patient } from '@/types/patient';
+
+// Extended session with patient data
+interface SessionWithPatient extends LocalSession {
+  patients?: LocalPatient;
+}
 
 export default function SessionsPage() {
   const navigate = useNavigate();
+  const { clinicId } = useAuth();
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingSession, setEditingSession] = useState<Session | null>(null);
-  const [deletingSession, setDeletingSession] = useState<Session | null>(null);
+  const [editingSession, setEditingSession] = useState<SessionWithPatient | null>(null);
+  const [deletingSession, setDeletingSession] = useState<SessionWithPatient | null>(null);
   const [selectedPatient, setSelectedPatient] = useState<string>('all');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
-  const [selectedMode, setSelectedMode] = useState<Session['mode'] | 'all'>('all');
-  const [selectedType, setSelectedType] = useState<Session['session_type'] | 'all'>('all');
+  const [selectedMode, setSelectedMode] = useState<LocalSession['mode'] | 'all'>('all');
+  const [selectedType, setSelectedType] = useState<LocalSession['session_type'] | 'all'>('all');
   const [searchText, setSearchText] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const { canViewSessions, canCreateSessions, canDeleteSessions } = usePermissions();
   const { showNames } = usePrivacyMode();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  const { data: patients } = useQuery({
-    queryKey: ['patients'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('patients')
-        .select('id, public_id, full_name')
-        .order('created_at', { ascending: false });
+  const [patients, setPatients] = useState<LocalPatient[]>([]);
+  const [sessions, setSessions] = useState<SessionWithPatient[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-      if (error) throw error;
-      return data as Patient[];
-    },
-    enabled: canViewSessions,
-  });
+  const loadData = async () => {
+    if (!clinicId || !canViewSessions) return;
+    
+    setIsLoading(true);
+    try {
+      const [patientsData, sessionsData] = await Promise.all([
+        getPatientsByClinic(clinicId),
+        getSessionsByClinic(clinicId),
+      ]);
+      
+      setPatients(patientsData);
+      
+      // Join sessions with patient data
+      const sessionsWithPatients: SessionWithPatient[] = sessionsData.map(session => ({
+        ...session,
+        patients: patientsData.find(p => p.id === session.patient_id),
+      }));
+      
+      // Sort by session_date descending
+      sessionsWithPatients.sort((a, b) => 
+        new Date(b.session_date).getTime() - new Date(a.session_date).getTime()
+      );
+      
+      setSessions(sessionsWithPatients);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast({
+        title: 'Erro ao carregar dados',
+        description: 'Não foi possível carregar as sessões.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const { data: sessions, isLoading, refetch } = useQuery({
-    queryKey: ['sessions', selectedPatient, startDate, endDate, selectedMode, selectedType],
-    queryFn: async () => {
-      let query = supabase
-        .from('sessions')
-        .select(`
-          *,
-          patients (
-            id,
-            public_id,
-            full_name
-          )
-        `);
+  useEffect(() => {
+    loadData();
+  }, [clinicId, canViewSessions]);
 
-      // Apply patient filter
-      if (selectedPatient !== 'all') {
-        query = query.eq('patient_id', selectedPatient);
-      }
-
-      // Apply date range filters - properly handle timezone
-      if (startDate) {
-        // Use start of day in local timezone, then convert to ISO
-        const start = startOfDay(startDate);
-        query = query.gte('session_date', start.toISOString());
-      }
-      if (endDate) {
-        // Use end of day in local timezone, then convert to ISO
-        const end = endOfDay(endDate);
-        query = query.lte('session_date', end.toISOString());
-      }
-
-      // Apply mode filter - exact match with enum values
-      if (selectedMode && selectedMode !== 'all') {
-        query = query.eq('mode', selectedMode);
-      }
-
-      // Apply session type filter
-      if (selectedType && selectedType !== 'all') {
-        query = query.eq('session_type', selectedType);
-      }
-
-      query = query.order('session_date', { ascending: false });
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      return data as Session[];
-    },
-    enabled: canViewSessions,
-  });
-
-  const deleteSessionMutation = useMutation({
-    mutationFn: async (sessionId: string) => {
-      const { error } = await supabase
-        .from('sessions')
-        .delete()
-        .eq('id', sessionId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+  const handleDeleteSession = async (sessionId: string) => {
+    setIsDeleting(true);
+    try {
+      await deleteLocalSession(sessionId);
       toast({
         title: 'Sessão excluída',
         description: 'A sessão foi excluída com sucesso.',
       });
       setDeletingSession(null);
-    },
-    onError: (error) => {
+      loadData();
+    } catch (error) {
       toast({
         title: 'Erro ao excluir sessão',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
         variant: 'destructive',
       });
-    },
-  });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const clearFilters = () => {
     setSelectedPatient('all');
@@ -148,29 +133,57 @@ export default function SessionsPage() {
     setSearchText('');
   };
 
-  // Apply text search filter to sessions
-  const filteredSessions = sessions?.filter((session) => {
-    if (!searchText.trim()) return true;
+  // Apply filters to sessions
+  const filteredSessions = sessions.filter((session) => {
+    // Patient filter
+    if (selectedPatient !== 'all' && session.patient_id !== selectedPatient) {
+      return false;
+    }
 
-    const searchLower = searchText.toLowerCase();
-    const searchableText = [
-      session.main_complaint,
-      session.hypotheses,
-      session.interventions,
-      session.observations,
-      session.patients?.public_id,
-      showNames ? session.patients?.full_name : '',
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
+    // Date range filters
+    if (startDate) {
+      const sessionDate = new Date(session.session_date);
+      if (sessionDate < startOfDay(startDate)) return false;
+    }
+    if (endDate) {
+      const sessionDate = new Date(session.session_date);
+      if (sessionDate > endOfDay(endDate)) return false;
+    }
 
-    return searchableText.includes(searchLower);
-  }) || [];
+    // Mode filter
+    if (selectedMode !== 'all' && session.mode !== selectedMode) {
+      return false;
+    }
+
+    // Type filter
+    if (selectedType !== 'all' && session.session_type !== selectedType) {
+      return false;
+    }
+
+    // Text search
+    if (searchText.trim()) {
+      const searchLower = searchText.toLowerCase();
+      const searchableText = [
+        session.main_complaint,
+        session.hypotheses,
+        session.interventions,
+        session.observations,
+        session.patients?.public_id,
+        showNames ? session.patients?.full_name : '',
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      if (!searchableText.includes(searchLower)) return false;
+    }
+
+    return true;
+  });
 
   const hasActiveFilters = selectedPatient !== 'all' || startDate || endDate || selectedMode !== 'all' || selectedType !== 'all' || searchText.trim() !== '';
 
-  const getSessionTypeLabel = (type?: Session['session_type']) => {
+  const getSessionTypeLabel = (type?: LocalSession['session_type']) => {
     if (!type) return 'Não definido';
     const labels: Record<string, string> = {
       anamnese: 'Anamnese',
@@ -196,46 +209,55 @@ export default function SessionsPage() {
     setIsExporting(true);
 
     try {
-      const selectedPatientData = patients?.find(p => p.id === selectedPatient);
-      const filters = {
-        hasFilters: hasActiveFilters,
-        patient: selectedPatientData ? 
-          (showNames && selectedPatientData.full_name ? selectedPatientData.full_name : selectedPatientData.public_id) : 
-          undefined,
-        startDate: startDate?.toISOString(),
-        endDate: endDate?.toISOString(),
-        mode: selectedMode !== 'all' ? getModeLabel(selectedMode) : undefined,
-      };
+      const doc = new jsPDF();
+      let yPosition = 20;
 
-      const { data, error } = await supabase.functions.invoke('export-sessions-pdf', {
-        body: {
-          sessions: filteredSessions,
-          filters,
-          clinicName: 'Androvox Assist',
-        },
-      });
+      // Header
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Relatório de Sessões Clínicas', 20, yPosition);
+      yPosition += 10;
 
-      if (error) throw error;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 20, yPosition);
+      yPosition += 5;
+      doc.text(`Total de sessões: ${filteredSessions.length}`, 20, yPosition);
+      yPosition += 15;
 
-      // Create a temporary HTML page and print it
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        throw new Error('Não foi possível abrir a janela de impressão. Verifique se pop-ups estão permitidos.');
+      // Sessions
+      for (const session of filteredSessions) {
+        if (yPosition > 250) {
+          doc.addPage();
+          yPosition = 20;
+        }
+
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        const patientName = showNames && session.patients?.full_name 
+          ? session.patients.full_name 
+          : session.patients?.public_id || 'Paciente não identificado';
+        doc.text(`${patientName} - ${format(new Date(session.session_date), 'dd/MM/yyyy')}`, 20, yPosition);
+        yPosition += 6;
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Tipo: ${getSessionTypeLabel(session.session_type)} | Modo: ${getModeLabel(session.mode)}`, 20, yPosition);
+        yPosition += 5;
+
+        if (session.main_complaint) {
+          doc.text(`Queixa: ${session.main_complaint.substring(0, 100)}...`, 20, yPosition);
+          yPosition += 5;
+        }
+
+        yPosition += 10;
       }
 
-      printWindow.document.write(data.html);
-      printWindow.document.close();
-
-      // Wait for content to load then print
-      printWindow.onload = () => {
-        setTimeout(() => {
-          printWindow.print();
-        }, 250);
-      };
+      doc.save(`sessoes_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
 
       toast({
-        title: 'Relatório gerado',
-        description: 'O relatório está pronto para impressão ou exportação em PDF.',
+        title: 'Relatório exportado',
+        description: 'O PDF foi gerado e baixado com sucesso.',
       });
     } catch (error) {
       console.error('Error exporting PDF:', error);
@@ -249,7 +271,7 @@ export default function SessionsPage() {
     }
   };
 
-  const getModeLabel = (mode: Session['mode']) => {
+  const getModeLabel = (mode: LocalSession['mode']) => {
     const labels = {
       online: 'Online',
       presencial: 'Presencial',
@@ -258,8 +280,8 @@ export default function SessionsPage() {
     return labels[mode];
   };
 
-  const getModeVariant = (mode: Session['mode']) => {
-    const variants: Record<Session['mode'], 'default' | 'secondary' | 'outline'> = {
+  const getModeVariant = (mode: LocalSession['mode']) => {
+    const variants: Record<LocalSession['mode'], 'default' | 'secondary' | 'outline'> = {
       online: 'secondary',
       presencial: 'default',
       híbrida: 'outline',
@@ -446,7 +468,7 @@ export default function SessionsPage() {
               {/* Mode Filter */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Modo de Atendimento</label>
-                <Select value={selectedMode} onValueChange={(value) => setSelectedMode(value as Session['mode'] | 'all')}>
+                <Select value={selectedMode} onValueChange={(value) => setSelectedMode(value as LocalSession['mode'] | 'all')}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos os modos" />
                   </SelectTrigger>
@@ -462,7 +484,7 @@ export default function SessionsPage() {
               {/* Session Type Filter */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Tipo de Sessão</label>
-                <Select value={selectedType} onValueChange={(value) => setSelectedType(value as Session['session_type'] | 'all')}>
+                <Select value={selectedType || 'all'} onValueChange={(value) => setSelectedType(value === 'all' ? 'all' : value as LocalSession['session_type'])}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos os tipos" />
                   </SelectTrigger>
@@ -478,212 +500,165 @@ export default function SessionsPage() {
                 </Select>
               </div>
             </div>
-          </div>
 
-          {hasActiveFilters && (
-            <div className="mt-4 flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                {filteredSessions.length} sessão(ões) encontrada(s)
-              </p>
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                <X className="h-4 w-4 mr-2" />
+            {/* Clear Filters Button */}
+            {hasActiveFilters && (
+              <Button variant="outline" onClick={clearFilters} size="sm">
+                <X className="mr-2 h-4 w-4" />
                 Limpar Filtros
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </CardContent>
       </Card>
 
-      {isLoading && (
-        <div className="space-y-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <Skeleton className="h-6 w-48" />
-                <Skeleton className="h-4 w-32" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-20 w-full" />
-              </CardContent>
+      {/* Sessions Grid */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Card key={i} className="p-4">
+              <Skeleton className="h-4 w-2/3 mb-2" />
+              <Skeleton className="h-4 w-1/2 mb-4" />
+              <Skeleton className="h-20 w-full" />
             </Card>
           ))}
         </div>
-      )}
-
-      {!isLoading && (!sessions || sessions.length === 0) && (
+      ) : filteredSessions.length === 0 ? (
         <Card>
           <CardContent className="pt-6">
             <div className="text-center py-12">
-              <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">Nenhuma sessão registrada</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Comece registrando sua primeira sessão clínica
+              <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">Nenhuma sessão encontrada</h3>
+              <p className="text-muted-foreground mb-4">
+                {hasActiveFilters
+                  ? 'Nenhuma sessão corresponde aos filtros aplicados.'
+                  : 'Comece registrando sua primeira sessão clínica.'}
               </p>
-              {canCreateSessions && (
-                <Button className="mt-4" onClick={() => setIsFormOpen(true)}>
+              {canCreateSessions && !hasActiveFilters && (
+                <Button onClick={() => setIsFormOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Registrar Primeira Sessão
+                  Nova Sessão
                 </Button>
               )}
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {filteredSessions && filteredSessions.length > 0 && (
-        <div className="space-y-4">
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredSessions.map((session) => (
-            <Card key={session.id}>
-              <CardHeader>
+            <Card key={session.id} className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
-                  <div className="space-y-1 flex-1">
-                    <div className="flex items-center gap-3">
-                      <CardTitle className="text-lg">
-                        {new Date(session.session_date).toLocaleDateString('pt-BR', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                        })}
-                      </CardTitle>
-                      <Badge variant={getModeVariant(session.mode)}>
-                        {getModeLabel(session.mode)}
-                      </Badge>
-                    </div>
-                    <CardDescription className="flex items-center gap-2">
-                      <User className="h-3 w-3" />
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-base truncate flex items-center gap-2">
+                      <User className="h-4 w-4 flex-shrink-0" />
                       {showNames && session.patients?.full_name
                         ? session.patients.full_name
-                        : session.patients?.public_id}
+                        : session.patients?.public_id || 'Paciente não identificado'}
+                    </CardTitle>
+                    <CardDescription className="flex items-center gap-1 mt-1">
+                      <Calendar className="h-3 w-3" />
+                      {format(new Date(session.session_date), 'dd/MM/yyyy')}
                     </CardDescription>
                   </div>
-                  <div className="flex gap-1">
+                  <Badge variant={getModeVariant(session.mode)}>
+                    {getModeLabel(session.mode)}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="space-y-3">
+                  <Badge variant="outline" className="text-xs">
+                    {getSessionTypeLabel(session.session_type)}
+                  </Badge>
+
+                  {session.main_complaint && (
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {session.main_complaint}
+                    </p>
+                  )}
+
+                  <div className="flex gap-2 pt-2">
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       onClick={() => navigate(`/sessions/${session.id}`)}
                     >
-                      <Eye className="h-4 w-4" />
+                      <Eye className="h-3 w-3 mr-1" />
+                      Ver
                     </Button>
-                    {canCreateSessions && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setEditingSession(session)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditingSession(session)}
+                    >
+                      <Pencil className="h-3 w-3 mr-1" />
+                      Editar
+                    </Button>
                     {canDeleteSessions && (
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
+                        className="text-destructive hover:text-destructive"
                         onClick={() => setDeletingSession(session)}
                       >
-                        <Trash2 className="h-4 w-4 text-destructive" />
+                        <Trash2 className="h-3 w-3" />
                       </Button>
                     )}
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {session.main_complaint && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <FileText className="h-4 w-4" />
-                      Queixa Principal
-                    </div>
-                    <p className="text-sm text-muted-foreground pl-6">
-                      {session.main_complaint}
-                    </p>
-                  </div>
-                )}
-
-                {session.hypotheses && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <FileText className="h-4 w-4" />
-                      Hipóteses Diagnósticas
-                    </div>
-                    <p className="text-sm text-muted-foreground pl-6 whitespace-pre-wrap">
-                      {session.hypotheses}
-                    </p>
-                  </div>
-                )}
-
-                {session.interventions && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <FileText className="h-4 w-4" />
-                      Intervenções
-                    </div>
-                    <p className="text-sm text-muted-foreground pl-6 whitespace-pre-wrap">
-                      {session.interventions}
-                    </p>
-                  </div>
-                )}
-
-                {session.observations && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <FileText className="h-4 w-4" />
-                      Observações Clínicas
-                    </div>
-                    <p className="text-sm text-muted-foreground pl-6 whitespace-pre-wrap">
-                      {session.observations}
-                    </p>
-                  </div>
-                )}
               </CardContent>
             </Card>
           ))}
         </div>
       )}
 
+      {/* Dialogs */}
       <SessionFormDialog
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
         onSuccess={() => {
-          refetch();
           setIsFormOpen(false);
+          loadData();
         }}
       />
 
-      <SessionEditDialog
-        open={!!editingSession}
-        onOpenChange={(open) => !open && setEditingSession(null)}
-        session={editingSession}
-        onSuccess={() => {
-          refetch();
-          setEditingSession(null);
-        }}
-      />
+      {editingSession && (
+        <SessionEditDialog
+          open={!!editingSession}
+          onOpenChange={(open) => !open && setEditingSession(null)}
+          session={editingSession as any}
+          onSuccess={() => {
+            setEditingSession(null);
+            loadData();
+          }}
+        />
+      )}
 
-      <AlertDialog open={!!deletingSession} onOpenChange={(open) => !open && setDeletingSession(null)}>
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingSession} onOpenChange={() => setDeletingSession(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir esta sessão? Esta ação não pode ser desfeita.
-              {deletingSession && (
-                <div className="mt-2 text-sm">
-                  <strong>Sessão:</strong> {new Date(deletingSession.session_date).toLocaleDateString('pt-BR')}
-                  <br />
-                  <strong>Paciente:</strong>{' '}
-                  {showNames && deletingSession.patients?.full_name
-                    ? deletingSession.patients.full_name
-                    : deletingSession.patients?.public_id}
-                </div>
-              )}
+              Tem certeza que deseja excluir esta sessão clínica? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deletingSession && deleteSessionMutation.mutate(deletingSession.id)}
+              onClick={() => deletingSession && handleDeleteSession(deletingSession.id)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeleting}
             >
-              Excluir Sessão
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Excluindo...
+                </>
+              ) : (
+                'Excluir'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

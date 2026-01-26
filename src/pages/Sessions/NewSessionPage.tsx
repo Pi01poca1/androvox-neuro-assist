@@ -1,20 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
+import { 
+  getPatientById, 
+  getSessionsByPatient, 
+  createSession,
+  createSessionHistory,
+  type LocalPatient,
+} from '@/lib/localDb';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Save, Calendar, Clock, FileText, User, Hash, Upload, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import type { Patient } from '@/types/patient';
 import { SessionAttachments } from '@/components/sessions/SessionAttachments';
 
 const SESSION_TYPE_LABELS: Record<string, string> = {
@@ -31,9 +34,8 @@ export default function NewSessionPage() {
   const [searchParams] = useSearchParams();
   const sessionType = searchParams.get('type') || 'outra';
   const navigate = useNavigate();
-  const { profile, user } = useAuth();
+  const { user, clinicId } = useAuth();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   // Form state
   const [mainComplaint, setMainComplaint] = useState('');
@@ -41,104 +43,101 @@ export default function NewSessionPage() {
   const [interventions, setInterventions] = useState('');
   const [observations, setObservations] = useState('');
   const [createdSessionId, setCreatedSessionId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Data state
+  const [patient, setPatient] = useState<LocalPatient | null>(null);
+  const [sessionCount, setSessionCount] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Current date/time
   const now = new Date();
 
-  const canCreateSession = !!profile?.clinic_id && !!patientId;
+  const canCreateSession = !!clinicId && !!patientId;
 
-  // Fetch patient data
-  const { data: patient, isLoading: patientLoading } = useQuery({
-    queryKey: ['patient', patientId],
-    queryFn: async () => {
-      if (!patientId) return null;
+  useEffect(() => {
+    const loadData = async () => {
+      if (!patientId) return;
       
-      const { data, error } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('id', patientId)
-        .single();
-
-      if (error) throw error;
-      return data as Patient;
-    },
-    enabled: !!patientId,
-  });
-
-  // Fetch session count for this patient to get the session number
-  const { data: sessionCount } = useQuery({
-    queryKey: ['session-count', patientId],
-    queryFn: async () => {
-      if (!patientId) return 0;
-      
-      const { count, error } = await supabase
-        .from('sessions')
-        .select('*', { count: 'exact', head: true })
-        .eq('patient_id', patientId);
-
-      if (error) throw error;
-      return count || 0;
-    },
-    enabled: !!patientId,
-  });
-
-  const sessionNumber = (sessionCount ?? 0) + 1;
-
-  // Create session mutation
-  const createSessionMutation = useMutation({
-    mutationFn: async () => {
-      if (!canCreateSession) {
-        throw new Error('Dados incompletos. Aguarde o carregamento ou faça login novamente.');
+      setIsLoading(true);
+      try {
+        const patientData = await getPatientById(patientId);
+        setPatient(patientData || null);
+        
+        const sessions = await getSessionsByPatient(patientId);
+        setSessionCount(sessions.length);
+      } catch (error) {
+        console.error('Error loading patient:', error);
+      } finally {
+        setIsLoading(false);
       }
+    };
 
-      const { data, error } = await supabase
-        .from('sessions')
-        .insert({
-          patient_id: patientId,
-          clinic_id: profile.clinic_id,
-          created_by: profile.id,
-          session_date: now.toISOString(),
-          session_type: sessionType as any,
-          mode: 'presencial',
-          status: 'concluída',
-          main_complaint: mainComplaint || null,
-          hypotheses: hypotheses || null,
-          interventions: interventions || null,
-          observations: observations || null,
-        })
-        .select()
-        .single();
+    loadData();
+  }, [patientId]);
 
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['session-count', patientId] });
-      setCreatedSessionId(data.id);
+  const sessionNumber = sessionCount + 1;
+
+  const handleSave = async () => {
+    if (!canCreateSession || !clinicId || !patientId) {
+      toast({
+        title: 'Erro',
+        description: 'Dados incompletos. Aguarde o carregamento ou faça login novamente.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const session = await createSession({
+        patient_id: patientId,
+        clinic_id: clinicId,
+        created_by: user?.id || null,
+        session_date: now.toISOString(),
+        session_type: sessionType as any,
+        mode: 'presencial',
+        status: 'concluída',
+        main_complaint: mainComplaint || null,
+        hypotheses: hypotheses || null,
+        interventions: interventions || null,
+        observations: observations || null,
+        scheduled_duration: null,
+        ai_suggestions: null,
+      });
+
+      // Create history entry
+      await createSessionHistory({
+        session_id: session.id,
+        clinic_id: clinicId,
+        changed_by: user?.id || 'sistema',
+        change_type: 'created',
+        field_name: null,
+        old_value: null,
+        new_value: null,
+      });
+
+      setCreatedSessionId(session.id);
       toast({
         title: 'Sessão registrada',
         description: `Sessão ${sessionNumber}º registrada com sucesso.`,
       });
-    },
-    onError: (error) => {
+    } catch (error) {
       toast({
         title: 'Erro ao salvar sessão',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
         variant: 'destructive',
       });
-    },
-  });
-
-  const handleSave = () => {
-    createSessionMutation.mutate();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleFinish = () => {
     navigate('/dashboard');
   };
 
-  if (patientLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen p-6">
         <Skeleton className="h-8 w-64 mb-4" />
@@ -296,9 +295,9 @@ export default function NewSessionPage() {
                 </Button>
                 <Button 
                   onClick={handleSave}
-                  disabled={createSessionMutation.isPending || !canCreateSession}
+                  disabled={isSaving || !canCreateSession}
                 >
-                  {createSessionMutation.isPending ? (
+                  {isSaving ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Salvando...
@@ -355,14 +354,18 @@ export default function NewSessionPage() {
 
             {/* Actions */}
             <div className="flex justify-center gap-4">
-              <Button variant="outline" onClick={() => {
+              <Button variant="outline" onClick={async () => {
                 // Reset form for new session
                 setMainComplaint('');
                 setHypotheses('');
                 setInterventions('');
                 setObservations('');
                 setCreatedSessionId(null);
-                queryClient.invalidateQueries({ queryKey: ['session-count', patientId] });
+                // Reload session count
+                if (patientId) {
+                  const sessions = await getSessionsByPatient(patientId);
+                  setSessionCount(sessions.length);
+                }
               }}>
                 Nova Sessão (mesmo paciente)
               </Button>

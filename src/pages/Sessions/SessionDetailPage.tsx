@@ -1,7 +1,19 @@
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabaseClient';
 import { usePrivacyMode } from '@/hooks/usePrivacyMode';
+import { useAuth } from '@/hooks/useAuth';
+import { 
+  getSessionById, 
+  getPatientById, 
+  getAttachmentsBySession,
+  getHistoryBySession,
+  getClinicUsers,
+  type LocalSession,
+  type LocalPatient,
+  type LocalSessionAttachment,
+  type LocalSessionHistory,
+  type LocalUser,
+} from '@/lib/localDb';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -11,92 +23,80 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { SessionAttachments } from '@/components/sessions/SessionAttachments';
 
-interface SessionHistory {
-  id: string;
-  changed_by: string;
-  changed_at: string;
-  change_type: string;
-  field_name: string | null;
-  old_value: string | null;
-  new_value: string | null;
-  profiles?: {
-    full_name: string;
-  };
+interface SessionWithPatient extends LocalSession {
+  patients?: LocalPatient;
+}
+
+interface SessionHistoryWithUser extends LocalSessionHistory {
+  profiles?: { full_name: string };
 }
 
 export default function SessionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { showNames } = usePrivacyMode();
+  const { clinicId } = useAuth();
 
-  const { data: session, isLoading } = useQuery({
-    queryKey: ['session-detail', id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('sessions')
-        .select(`
-          *,
-          patients (
-            id,
-            public_id,
-            full_name
-          )
-        `)
-        .eq('id', id)
-        .single();
+  const [session, setSession] = useState<SessionWithPatient | null>(null);
+  const [attachments, setAttachments] = useState<LocalSessionAttachment[]>([]);
+  const [history, setHistory] = useState<SessionHistoryWithUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
+  useEffect(() => {
+    const loadData = async () => {
+      if (!id) return;
+      
+      setIsLoading(true);
+      try {
+        const sessionData = await getSessionById(id);
+        if (!sessionData) {
+          setSession(null);
+          return;
+        }
 
-  const { data: attachments } = useQuery({
-    queryKey: ['session-attachments', id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('session_attachments')
-        .select('*')
-        .eq('session_id', id)
-        .order('uploaded_at', { ascending: false });
+        // Get patient data
+        const patientData = await getPatientById(sessionData.patient_id);
+        
+        // Get attachments
+        const attachmentsData = await getAttachmentsBySession(id);
+        
+        // Get history
+        const historyData = await getHistoryBySession(id);
+        
+        // Get clinic users for history names
+        let usersMap: Record<string, LocalUser> = {};
+        if (clinicId) {
+          const users = await getClinicUsers(clinicId);
+          usersMap = users.reduce((acc, user) => {
+            acc[user.id] = user;
+            return acc;
+          }, {} as Record<string, LocalUser>);
+        }
+        
+        const historyWithUsers: SessionHistoryWithUser[] = historyData
+          .sort((a, b) => new Date(b.changed_at).getTime() - new Date(a.changed_at).getTime())
+          .map(h => ({
+            ...h,
+            profiles: usersMap[h.changed_by] ? { full_name: usersMap[h.changed_by].full_name } : undefined,
+          }));
 
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!id,
-  });
+        setSession({
+          ...sessionData,
+          patients: patientData,
+        });
+        setAttachments(attachmentsData.sort((a, b) => 
+          new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime()
+        ));
+        setHistory(historyWithUsers);
+      } catch (error) {
+        console.error('Error loading session:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const { data: history } = useQuery({
-    queryKey: ['session-history', id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('session_history')
-        .select('*')
-        .eq('session_id', id)
-        .order('changed_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Fetch profiles for each history entry
-      const historyWithProfiles = await Promise.all(
-        (data || []).map(async (item) => {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('full_name')
-            .eq('id', item.changed_by)
-            .single();
-          
-          return {
-            ...item,
-            profiles: profile,
-          };
-        })
-      );
-
-      return historyWithProfiles as SessionHistory[];
-    },
-    enabled: !!id,
-  });
+    loadData();
+  }, [id, clinicId]);
 
   const getModeLabel = (mode: string) => {
     const modes: Record<string, string> = {
@@ -218,7 +218,7 @@ export default function SessionDetailPage() {
             </div>
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Tipo de Sessão</p>
-              <p className="font-medium">{getSessionTypeLabel(session.session_type)}</p>
+              <p className="font-medium">{getSessionTypeLabel(session.session_type || undefined)}</p>
             </div>
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground flex items-center gap-2">
@@ -334,7 +334,7 @@ export default function SessionDetailPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {id && <SessionAttachments sessionId={id} attachments={attachments || []} />}
+          {id && <SessionAttachments sessionId={id} attachments={attachments as any} />}
         </CardContent>
       </Card>
 
