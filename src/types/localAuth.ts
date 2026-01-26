@@ -1,20 +1,18 @@
 import type { AppRole } from './roles';
 
-// Re-export for backward compatibility
-export type { AppRole };
-
-export interface UserProfile {
+export interface LocalUserProfile {
   id: string;
-  clinic_id: string;
+  email: string;
   full_name: string;
+  clinic_id: string;
   role: AppRole;
   created_at: string;
   updated_at: string;
 }
 
-export interface AuthContextType {
-  user: UserProfile | null;
-  profile: UserProfile | null;
+export interface LocalAuthContextType {
+  user: LocalUserProfile | null;
+  profile: LocalUserProfile | null;
   userRole: AppRole | null;
   clinicId: string | null;
   loading: boolean;

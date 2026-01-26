@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Brain, Loader2, UserRound, Briefcase, CheckCircle, Mail } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Brain, Loader2, Briefcase, WifiOff, Info } from 'lucide-react';
 import type { AppRole } from '@/types/roles';
 
 export default function RegisterPage() {
@@ -17,71 +16,16 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [clinicName, setClinicName] = useState('');
-  const [role, setRole] = useState<AppRole>('profissional');
   const [loading, setLoading] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
-  const [searchParams] = useSearchParams();
-  const [invitationToken, setInvitationToken] = useState<string | null>(null);
-  const [invitationEmail, setInvitationEmail] = useState<string | null>(null);
-  const [invitationAccepted, setInvitationAccepted] = useState(false);
   
   const { signUp, user } = useAuth();
   const navigate = useNavigate();
 
-  // Check for invitation token in URL
   useEffect(() => {
-    const token = searchParams.get('invite');
-    if (token) {
-      setInvitationToken(token);
-      setRole('secretario');
-      
-      // Try to get invitation email
-      const fetchInvitation = async () => {
-        const { data } = await supabase
-          .from('secretary_invitations')
-          .select('email')
-          .eq('token', token)
-          .eq('status', 'pending')
-          .gt('expires_at', new Date().toISOString())
-          .maybeSingle();
-        
-        if (data) {
-          setInvitationEmail(data.email);
-          setEmail(data.email);
-        }
-      };
-      
-      fetchInvitation();
-    }
-  }, [searchParams]);
-
-  useEffect(() => {
-    if (user && !invitationToken) {
+    if (user) {
       navigate('/dashboard', { replace: true });
     }
-  }, [user, navigate, invitationToken]);
-
-  // Accept invitation after registration
-  useEffect(() => {
-    const acceptInvitation = async () => {
-      if (user && invitationToken && !invitationAccepted) {
-        const { data, error } = await supabase.rpc('accept_secretary_invitation', {
-          _invitation_token: invitationToken,
-          _user_id: user.id,
-        });
-        
-        if (data && !error) {
-          setInvitationAccepted(true);
-          // Reload to get updated profile with clinic_id
-          window.location.href = '/dashboard';
-        } else {
-          navigate('/dashboard');
-        }
-      }
-    };
-    
-    acceptInvitation();
-  }, [user, invitationToken, invitationAccepted, navigate]);
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,69 +43,16 @@ export default function RegisterPage() {
       email, 
       password, 
       fullName, 
-      role, 
-      role === 'profissional' ? clinicName : undefined
+      'profissional' as AppRole,
+      clinicName
     );
     
     if (!error) {
-      // With auto-confirm enabled, redirect to dashboard
-      // The auth state listener in useAuth will update the user
       navigate('/dashboard');
     }
     
     setLoading(false);
   };
-
-  const isSecretaryInvite = !!invitationToken;
-
-  // Email confirmation success screen
-  if (emailSent) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-muted p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="space-y-4 text-center">
-            <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-              <Mail className="h-8 w-8 text-primary" />
-            </div>
-            <CardTitle className="text-2xl">Verifique seu e-mail</CardTitle>
-            <CardDescription className="text-base">
-              Enviamos um link de confirmação para <strong className="text-foreground">{email}</strong>
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Alert className="bg-primary/5 border-primary/20">
-              <CheckCircle className="h-4 w-4 text-primary" />
-              <AlertDescription>
-                Clique no link enviado para seu e-mail para ativar sua conta e começar a usar o sistema.
-              </AlertDescription>
-            </Alert>
-            <div className="text-sm text-muted-foreground text-center space-y-2">
-              <p>Não recebeu o e-mail?</p>
-              <ul className="list-disc list-inside text-left space-y-1">
-                <li>Verifique sua pasta de spam</li>
-                <li>Confirme se o e-mail digitado está correto</li>
-              </ul>
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-3">
-            <Button 
-              variant="outline" 
-              className="w-full"
-              onClick={() => setEmailSent(false)}
-            >
-              Voltar e corrigir e-mail
-            </Button>
-            <Link 
-              to="/auth/login" 
-              className="text-sm text-primary hover:underline font-medium"
-            >
-              Já confirmou? Fazer login
-            </Link>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted p-4">
@@ -170,55 +61,35 @@ export default function RegisterPage() {
           <div className="mx-auto w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
             <Brain className="h-7 w-7 text-primary-foreground" />
           </div>
-          <CardTitle className="text-2xl">
-            {isSecretaryInvite ? 'Convite de Secretário' : 'Criar Conta'}
-          </CardTitle>
+          <CardTitle className="text-2xl">Criar Conta</CardTitle>
           <CardDescription>
-            {isSecretaryInvite 
-              ? 'Complete seu cadastro para acessar a clínica'
-              : 'Preencha os dados para começar'
-            }
+            Preencha os dados para começar
           </CardDescription>
+          <Badge variant="secondary" className="mx-auto gap-1.5">
+            <WifiOff className="h-3 w-3" />
+            Modo Offline
+          </Badge>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
-            {isSecretaryInvite && invitationEmail && (
-              <Alert className="bg-primary/10 border-primary/30">
-                <CheckCircle className="h-4 w-4 text-primary" />
-                <AlertDescription>
-                  Você foi convidado para se juntar à clínica como secretário.
-                  Use o email <strong>{invitationEmail}</strong> para completar o registro.
-                </AlertDescription>
-              </Alert>
-            )}
+            <Alert className="bg-muted border-border">
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                <strong>Modo Offline:</strong> Todos os dados são armazenados localmente no seu dispositivo.
+                Para adicionar secretários, use o menu Configurações após criar sua conta.
+              </AlertDescription>
+            </Alert>
 
-            {!isSecretaryInvite && (
-              <div className="space-y-3">
-                <Label>Tipo de Acesso</Label>
-                <RadioGroup value={role} onValueChange={(v) => setRole(v as AppRole)}>
-                  <div className="flex items-center space-x-3 rounded-lg border border-border p-4 hover:bg-accent/50 cursor-pointer">
-                    <RadioGroupItem value="profissional" id="profissional" />
-                    <Label htmlFor="profissional" className="flex items-center gap-3 cursor-pointer flex-1">
-                      <Briefcase className="h-5 w-5 text-primary" />
-                      <div>
-                        <div className="font-semibold">Profissional</div>
-                        <div className="text-xs text-muted-foreground">Acesso completo ao sistema</div>
-                      </div>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-3 rounded-lg border border-border p-4 hover:bg-accent/50 cursor-pointer opacity-60">
-                    <RadioGroupItem value="secretario" id="secretario" disabled />
-                    <Label htmlFor="secretario" className="flex items-center gap-3 cursor-pointer flex-1">
-                      <UserRound className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <div className="font-semibold text-muted-foreground">Secretário</div>
-                        <div className="text-xs text-muted-foreground">Requer convite de uma clínica</div>
-                      </div>
-                    </Label>
-                  </div>
-                </RadioGroup>
+            <div className="space-y-3">
+              <Label>Tipo de Acesso</Label>
+              <div className="flex items-center space-x-3 rounded-lg border border-primary bg-primary/5 p-4">
+                <Briefcase className="h-5 w-5 text-primary" />
+                <div>
+                  <div className="font-semibold">Profissional</div>
+                  <div className="text-xs text-muted-foreground">Acesso completo ao sistema</div>
+                </div>
               </div>
-            )}
+            </div>
             
             <div className="space-y-2">
               <Label htmlFor="fullName">Nome Completo</Label>
@@ -233,19 +104,17 @@ export default function RegisterPage() {
               />
             </div>
 
-            {!isSecretaryInvite && role === 'profissional' && (
-              <div className="space-y-2">
-                <Label htmlFor="clinicName">Nome da Clínica</Label>
-                <Input
-                  id="clinicName"
-                  type="text"
-                  placeholder="Nome da sua clínica"
-                  value={clinicName}
-                  onChange={(e) => setClinicName(e.target.value)}
-                  disabled={loading}
-                />
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="clinicName">Nome da Clínica</Label>
+              <Input
+                id="clinicName"
+                type="text"
+                placeholder="Nome da sua clínica"
+                value={clinicName}
+                onChange={(e) => setClinicName(e.target.value)}
+                disabled={loading}
+              />
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="email">E-mail</Label>
@@ -256,7 +125,7 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                disabled={loading || (isSecretaryInvite && !!invitationEmail)}
+                disabled={loading}
               />
             </div>
 

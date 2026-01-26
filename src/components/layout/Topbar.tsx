@@ -1,9 +1,9 @@
-import { Key, LogOut, User } from 'lucide-react';
+import { Key, LogOut, User, WifiOff } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePrivacyMode } from '@/hooks/usePrivacyMode';
 import { Button } from '@/components/ui/button';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
-import { SyncStatusBadge } from '@/components/offline/SyncStatusBadge';
+import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,11 +13,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Badge } from '@/components/ui/badge';
 
 export function Topbar() {
   const { profile, signOut } = useAuth();
-  const { privacyMode, usbStatus, isOnline, setPrivacyMode } = usePrivacyMode();
+  const { privacyMode, usbStatus, setPrivacyMode } = usePrivacyMode();
 
   const handleTogglePrivacyMode = async () => {
     const newMode = privacyMode === 'ID' ? 'NOME' : 'ID';
@@ -36,8 +35,11 @@ export function Topbar() {
       </div>
 
       <div className="flex items-center gap-2">
-        {/* Sync Status */}
-        <SyncStatusBadge />
+        {/* Offline Mode Indicator */}
+        <Badge variant="secondary" className="gap-1.5 px-3">
+          <WifiOff className="h-3.5 w-3.5" />
+          <span className="font-medium">Offline</span>
+        </Badge>
 
         {/* USB Key Status */}
         <Badge 
