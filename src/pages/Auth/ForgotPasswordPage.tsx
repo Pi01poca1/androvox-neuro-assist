@@ -1,57 +1,11 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Brain, Loader2, ArrowLeft } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Brain, WifiOff, Info, ArrowLeft } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
-  const { resetPassword } = useAuth();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    const { error } = await resetPassword(email);
-    
-    if (!error) {
-      setSent(true);
-    }
-    
-    setLoading(false);
-  };
-
-  if (sent) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-muted p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="space-y-3 text-center">
-            <div className="mx-auto w-12 h-12 rounded-xl bg-success flex items-center justify-center">
-              <Brain className="h-7 w-7 text-success-foreground" />
-            </div>
-            <CardTitle className="text-2xl">Email Enviado!</CardTitle>
-            <CardDescription>
-              Verifique sua caixa de entrada para redefinir sua senha
-            </CardDescription>
-          </CardHeader>
-          <CardFooter>
-            <Button asChild className="w-full" variant="outline">
-              <Link to="/auth/login">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Voltar para login
-              </Link>
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted p-4">
       <Card className="w-full max-w-md">
@@ -61,47 +15,35 @@ export default function ForgotPasswordPage() {
           </div>
           <CardTitle className="text-2xl">Recuperar Senha</CardTitle>
           <CardDescription>
-            Digite seu e-mail para receber instruções
+            Modo Offline
           </CardDescription>
+          <Badge variant="secondary" className="mx-auto gap-1.5">
+            <WifiOff className="h-3 w-3" />
+            Modo Offline
+          </Badge>
         </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={loading}
-              />
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
-            <Button 
-              type="submit" 
-              className="w-full" 
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Enviando...
-                </>
-              ) : (
-                'Enviar instruções'
-              )}
-            </Button>
-            <Button asChild variant="ghost" className="w-full">
-              <Link to="/auth/login">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Voltar para login
-              </Link>
-            </Button>
-          </CardFooter>
-        </form>
+        <CardContent className="space-y-4">
+          <Alert className="bg-muted border-border">
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Recuperação de senha offline:</strong>
+              <p className="mt-2">
+                Como o sistema funciona em modo offline, a recuperação de senha por email não está disponível.
+              </p>
+              <p className="mt-2">
+                Para redefinir sua senha, entre em contato com o administrador do sistema ou outro profissional com acesso administrativo.
+              </p>
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+        <CardFooter className="flex flex-col space-y-4">
+          <Button asChild variant="outline" className="w-full">
+            <Link to="/auth/login">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Voltar para Login
+            </Link>
+          </Button>
+        </CardFooter>
       </Card>
     </div>
   );

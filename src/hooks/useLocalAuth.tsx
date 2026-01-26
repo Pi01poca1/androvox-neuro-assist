@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import type { AppRole } from '@/types/roles';
-import type { UserProfile, AuthContextType } from '@/types/auth';
+import type { LocalUserProfile, LocalAuthContextType } from '@/types/localAuth';
 import { useToast } from '@/hooks/use-toast';
 import {
   getLocalSession,
@@ -10,16 +10,16 @@ import {
   getUserByEmail,
   createUser,
   createClinic,
-  getClinicUsers,
   verifyPassword,
   type LocalUser,
 } from '@/lib/localDb';
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const LocalAuthContext = createContext<LocalAuthContextType | undefined>(undefined);
 
-function userToProfile(user: LocalUser): UserProfile {
+function userToProfile(user: LocalUser): LocalUserProfile {
   return {
     id: user.id,
+    email: user.email,
     full_name: user.full_name,
     clinic_id: user.clinic_id,
     role: user.role,
@@ -28,8 +28,8 @@ function userToProfile(user: LocalUser): UserProfile {
   };
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(null);
+export function LocalAuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<LocalUserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -118,6 +118,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clinicId = clinic.id;
       } else {
         // For secretaries, they need to be invited to an existing clinic
+        // For now, we'll create a placeholder - in real use, secretaries
+        // would be added through the team management
         toast({
           title: "Erro ao criar conta",
           description: "Secretários precisam ser convidados por um profissional",
@@ -165,16 +167,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const resetPassword = async (_email: string): Promise<{ error: Error | null }> => {
-    // In local mode, password reset requires admin
+    // In local mode, password reset is not supported via email
+    // User would need to have another admin reset it, or we could implement
+    // a security question system
     toast({
-      title: "Modo Offline",
-      description: "Solicite a redefinição de senha ao administrador do sistema.",
+      title: "Funcionalidade offline",
+      description: "Em modo offline, solicite a redefinição de senha ao administrador do sistema.",
       variant: "destructive",
     });
     return { error: new Error('Redefinição de senha não disponível no modo offline') };
   };
 
-  const value: AuthContextType = {
+  const value: LocalAuthContextType = {
     user,
     profile: user,
     userRole: user?.role ?? null,
@@ -186,39 +190,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     resetPassword,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <LocalAuthContext.Provider value={value}>{children}</LocalAuthContext.Provider>;
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
+export function useLocalAuth() {
+  const context = useContext(LocalAuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useLocalAuth must be used within a LocalAuthProvider');
   }
   return context;
 }
 
-// Helper function to add secretary to clinic (for team management)
-export async function addSecretaryToClinic(
-  email: string,
-  password: string,
-  fullName: string,
-  clinicId: string
-): Promise<{ user: LocalUser | null; error: Error | null }> {
-  try {
-    const userData = await createUser(
-      email.toLowerCase().trim(),
-      password,
-      fullName,
-      'secretario',
-      clinicId
-    );
-    return { user: userData, error: null };
-  } catch (error) {
-    return { user: null, error: error as Error };
-  }
-}
-
-// Helper to get team members
-export async function getTeamMembers(clinicId: string): Promise<LocalUser[]> {
-  return getClinicUsers(clinicId);
-}
+// Re-export as useAuth for compatibility
+export { useLocalAuth as useAuth, LocalAuthProvider as AuthProvider };

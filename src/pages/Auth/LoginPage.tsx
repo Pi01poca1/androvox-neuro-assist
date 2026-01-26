@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Brain, Loader2 } from 'lucide-react';
+import { Brain, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -44,6 +45,10 @@ export default function LoginPage() {
           <CardDescription>
             Sistema de Gestão Clínica - Neuropsicologia
           </CardDescription>
+          <Badge variant="secondary" className="mx-auto gap-1.5">
+            <WifiOff className="h-3 w-3" />
+            Modo Offline
+          </Badge>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
@@ -70,14 +75,6 @@ export default function LoginPage() {
                 required
                 disabled={loading}
               />
-            </div>
-            <div className="text-sm text-right">
-              <Link 
-                to="/auth/forgot-password" 
-                className="text-primary hover:underline"
-              >
-                Esqueci minha senha
-              </Link>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
