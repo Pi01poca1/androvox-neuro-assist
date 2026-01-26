@@ -2,11 +2,9 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { GenderType } from '@/types/patient';
+import { createPatient, generatePatientPublicId } from '@/lib/localDb';
 import {
   Dialog,
   DialogContent,
@@ -75,10 +73,9 @@ interface PatientFormDialogProps {
 }
 
 export function PatientFormDialog({ open, onOpenChange, onSuccess }: PatientFormDialogProps) {
-  const { profile, user } = useAuth();
+  const { clinicId } = useAuth();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [generatedId, setGeneratedId] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<PatientFormData>({
     resolver: zodResolver(patientSchema),
@@ -91,88 +88,54 @@ export function PatientFormDialog({ open, onOpenChange, onSuccess }: PatientForm
   });
 
   // Check if we have the required data
-  const canSubmit = !!profile?.clinic_id;
+  const canSubmit = !!clinicId;
 
-  // Mutation para criar paciente
-  const createPatientMutation = useMutation({
-    mutationFn: async (data: PatientFormData) => {
-      console.log('Profile no mutation:', profile);
-      console.log('Clinic ID:', profile?.clinic_id);
-      
-      if (!profile?.clinic_id) {
-        throw new Error('Clínica não encontrada. Perfil: ' + JSON.stringify(profile));
-      }
+  const onSubmit = async (data: PatientFormData) => {
+    if (!clinicId) {
+      toast({
+        title: 'Erro',
+        description: 'Clínica não encontrada.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
-      // Primeiro, gera o ID público
-      const { data: publicIdData, error: idError } = await supabase.rpc(
-        'generate_patient_public_id'
-      );
+    setIsSubmitting(true);
 
-      if (idError) throw idError;
-
-      const publicId = publicIdData as string;
-      setGeneratedId(publicId);
-
-      // Prepara os dados para inserção
-      const insertData: any = {
-        clinic_id: profile.clinic_id,
-        public_id: publicId,
+    try {
+      const patient = await createPatient({
+        clinic_id: clinicId,
+        full_name: data.full_name?.trim() || null,
+        birth_date: data.birth_date || null,
         gender: data.gender,
-      };
+        notes_summary: data.notes_summary?.trim() || null,
+      });
 
-      // Adiciona campos opcionais apenas se preenchidos
-      if (data.full_name && data.full_name.trim()) {
-        insertData.full_name = data.full_name.trim();
-      }
-      if (data.birth_date) {
-        insertData.birth_date = data.birth_date;
-      }
-      if (data.notes_summary && data.notes_summary.trim()) {
-        insertData.notes_summary = data.notes_summary.trim();
-      }
-
-      const { data: patient, error } = await supabase
-        .from('patients')
-        .insert(insertData)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      return patient;
-    },
-    onSuccess: (patient) => {
       toast({
         title: 'Paciente cadastrado com sucesso',
         description: `ID: ${patient.public_id}`,
       });
-      
-      // Invalida a query de pacientes para recarregar a lista
-      queryClient.invalidateQueries({ queryKey: ['patients'] });
-      
-      // Reseta o formulário
+
+      // Reset form
       form.reset();
-      setGeneratedId('');
-      
-      // Fecha o dialog
+
+      // Close dialog
       onOpenChange(false);
-      
-      // Callback opcional
+
+      // Optional callback
       if (onSuccess) {
         onSuccess(patient);
       }
-    },
-    onError: (error: Error) => {
+    } catch (error) {
+      console.error('Error creating patient:', error);
       toast({
         title: 'Erro ao cadastrar paciente',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
         variant: 'destructive',
       });
-    },
-  });
-
-  const onSubmit = (data: PatientFormData) => {
-    createPatientMutation.mutate(data);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -203,7 +166,7 @@ export function PatientFormDialog({ open, onOpenChange, onSuccess }: PatientForm
                       />
                     </FormControl>
                     <FormDescription>
-                      Nome será visível apenas em modo offline com chave USB
+                      Nome será visível apenas com chave USB presente
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -286,12 +249,12 @@ export function PatientFormDialog({ open, onOpenChange, onSuccess }: PatientForm
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={createPatientMutation.isPending}
+                disabled={isSubmitting}
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createPatientMutation.isPending || !canSubmit}>
-                {createPatientMutation.isPending && (
+              <Button type="submit" disabled={isSubmitting || !canSubmit}>
+                {isSubmitting && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Cadastrar Paciente

@@ -1,8 +1,14 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
+import { 
+  getPatientsByClinic, 
+  getSessionsByPatient, 
+  getAttachmentsBySession,
+  type LocalPatient,
+  type LocalSession,
+  type LocalSessionAttachment
+} from '@/lib/localDb';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -11,47 +17,87 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { 
   Plus, Users, Brain, Search, Menu, LogOut, Settings, Calendar, FileText, 
   Camera, ArrowLeft, ClipboardList, FileBarChart, Paperclip, Clock, Eye,
-  ChevronDown, ChevronUp, MessageSquare, Stethoscope, Loader2
+  ChevronDown, ChevronUp, MessageSquare, Stethoscope, Loader2, WifiOff
 } from 'lucide-react';
 import { PatientFormDialog } from '@/components/patients/PatientFormDialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import type { Patient } from '@/types/patient';
+import jsPDF from 'jspdf';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { profile, loading: authLoading, signOut } = useAuth();
+  const { profile, loading: authLoading, signOut, clinicId } = useAuth();
   const [isSelectPatientOpen, setIsSelectPatientOpen] = useState(false);
   const [isNewPatientOpen, setIsNewPatientOpen] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<LocalPatient | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [patientAvatar, setPatientAvatar] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: patients, isLoading } = useQuery({
-    queryKey: ['patients', profile?.clinic_id],
-    queryFn: async () => {
-      if (!profile?.clinic_id) return [];
-      
-      const { data, error } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('clinic_id', profile.clinic_id)
-        .order('full_name', { ascending: true });
+  // Local data states
+  const [patients, setPatients] = useState<LocalPatient[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [patientSessions, setPatientSessions] = useState<LocalSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [attachmentsMap, setAttachmentsMap] = useState<Record<string, LocalSessionAttachment[]>>({});
 
-      if (error) throw error;
-      return data as Patient[];
-    },
-    enabled: !!profile?.clinic_id,
-  });
+  // Load patients from local DB
+  useEffect(() => {
+    const loadPatients = async () => {
+      if (!clinicId) {
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const data = await getPatientsByClinic(clinicId);
+        setPatients(data.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '')));
+      } catch (error) {
+        console.error('Error loading patients:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadPatients();
+  }, [clinicId]);
 
-  const dataLoading = isLoading || authLoading || !profile?.clinic_id;
+  // Load sessions when patient is selected
+  useEffect(() => {
+    const loadPatientSessions = async () => {
+      if (!selectedPatient?.id) {
+        setPatientSessions([]);
+        return;
+      }
+      setSessionsLoading(true);
+      try {
+        const sessions = await getSessionsByPatient(selectedPatient.id);
+        setPatientSessions(sessions.sort((a, b) => 
+          new Date(b.session_date).getTime() - new Date(a.session_date).getTime()
+        ));
+
+        // Load attachments for all sessions
+        const attachments: Record<string, LocalSessionAttachment[]> = {};
+        for (const session of sessions) {
+          const sessionAttachments = await getAttachmentsBySession(session.id);
+          if (sessionAttachments.length > 0) {
+            attachments[session.id] = sessionAttachments;
+          }
+        }
+        setAttachmentsMap(attachments);
+      } catch (error) {
+        console.error('Error loading sessions:', error);
+      } finally {
+        setSessionsLoading(false);
+      }
+    };
+    loadPatientSessions();
+  }, [selectedPatient?.id]);
+
+  const dataLoading = isLoading || authLoading || !clinicId;
 
   const filteredPatients = patients?.filter((patient) => {
     if (!searchQuery.trim()) return true;
@@ -62,7 +108,7 @@ export default function DashboardPage() {
     );
   });
 
-  const handlePatientSelect = (patient: Patient) => {
+  const handlePatientSelect = (patient: LocalPatient) => {
     setSelectedPatient(patient);
     setPatientAvatar(null);
     setIsSelectPatientOpen(false);
@@ -89,51 +135,6 @@ export default function DashboardPage() {
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
   const [reportType, setReportType] = useState<'sintese' | 'pleno'>('sintese');
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
-
-  // Fetch sessions for selected patient
-  const { data: patientSessions, isLoading: sessionsLoading } = useQuery({
-    queryKey: ['patient-sessions-dashboard', selectedPatient?.id],
-    queryFn: async () => {
-      if (!selectedPatient?.id) return [];
-      const { data, error } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('patient_id', selectedPatient.id)
-        .order('session_date', { ascending: false });
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!selectedPatient?.id,
-  });
-
-  // Fetch attachments for sessions
-  const { data: attachmentsMap } = useQuery({
-    queryKey: ['patient-sessions-attachments-dashboard', selectedPatient?.id],
-    queryFn: async () => {
-      if (!patientSessions || patientSessions.length === 0) return {};
-      
-      const sessionIds = patientSessions.map(s => s.id);
-      const { data, error } = await supabase
-        .from('session_attachments')
-        .select('*')
-        .in('session_id', sessionIds)
-        .order('uploaded_at', { ascending: false });
-
-      if (error) throw error;
-
-      const map: Record<string, any[]> = {};
-      (data || []).forEach(attachment => {
-        if (!map[attachment.session_id]) {
-          map[attachment.session_id] = [];
-        }
-        map[attachment.session_id].push(attachment);
-      });
-
-      return map;
-    },
-    enabled: !!patientSessions && patientSessions.length > 0,
-  });
 
   const sessionTypes = [
     { key: 'anamnese', label: 'Anamnese' },
@@ -195,37 +196,86 @@ export default function DashboardPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // Local PDF generation
   const handleGenerateReport = async () => {
-    if (!selectedPatient || !patientSessions) return;
+    if (!selectedPatient || !patientSessions || patientSessions.length === 0) return;
     
     setIsGeneratingReport(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-report-pdf', {
-        body: {
-          patientId: selectedPatient.id,
-          patientName: selectedPatient.full_name || selectedPatient.public_id,
-          patientPublicId: selectedPatient.public_id,
-          sessions: patientSessions,
-          reportType: reportType,
-          clinicName: 'Androvox Assist',
-        },
-      });
-
-      if (error) throw error;
-
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        throw new Error('Não foi possível abrir a janela. Verifique se pop-ups estão permitidos.');
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let yPos = 20;
+      
+      // Header
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Androvox Assist', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 10;
+      
+      doc.setFontSize(14);
+      doc.text(reportType === 'sintese' ? 'Relatório Síntese' : 'Relatório Pleno', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 15;
+      
+      // Patient info
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Paciente: ${selectedPatient.full_name || selectedPatient.public_id}`, 20, yPos);
+      yPos += 7;
+      doc.text(`ID: ${selectedPatient.public_id}`, 20, yPos);
+      yPos += 7;
+      doc.text(`Data: ${format(new Date(), "dd/MM/yyyy", { locale: ptBR })}`, 20, yPos);
+      yPos += 15;
+      
+      // Sessions
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Sessões Registradas', 20, yPos);
+      yPos += 10;
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      
+      for (const session of patientSessions) {
+        if (yPos > 270) {
+          doc.addPage();
+          yPos = 20;
+        }
+        
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${format(new Date(session.session_date), "dd/MM/yyyy", { locale: ptBR })} - ${getSessionTypeLabel(session.session_type)}`, 20, yPos);
+        yPos += 6;
+        
+        doc.setFont('helvetica', 'normal');
+        if (session.main_complaint) {
+          const lines = doc.splitTextToSize(`Queixa: ${session.main_complaint}`, pageWidth - 40);
+          doc.text(lines, 25, yPos);
+          yPos += lines.length * 5 + 3;
+        }
+        
+        if (reportType === 'pleno') {
+          if (session.hypotheses) {
+            const lines = doc.splitTextToSize(`Hipóteses: ${session.hypotheses}`, pageWidth - 40);
+            doc.text(lines, 25, yPos);
+            yPos += lines.length * 5 + 3;
+          }
+          if (session.interventions) {
+            const lines = doc.splitTextToSize(`Intervenções: ${session.interventions}`, pageWidth - 40);
+            doc.text(lines, 25, yPos);
+            yPos += lines.length * 5 + 3;
+          }
+          if (session.observations) {
+            const lines = doc.splitTextToSize(`Observações: ${session.observations}`, pageWidth - 40);
+            doc.text(lines, 25, yPos);
+            yPos += lines.length * 5 + 3;
+          }
+        }
+        
+        yPos += 5;
       }
-
-      printWindow.document.write(data.html);
-      printWindow.document.close();
-
-      printWindow.onload = () => {
-        setTimeout(() => {
-          printWindow.print();
-        }, 250);
-      };
+      
+      // Save/download
+      doc.save(`relatorio_${selectedPatient.public_id}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+      
     } catch (error) {
       console.error('Error generating report:', error);
     } finally {
@@ -250,6 +300,10 @@ export default function DashboardPage() {
           </Button>
           
           <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="gap-1">
+              <WifiOff className="h-3 w-3" />
+              Offline
+            </Badge>
             <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
               <Brain className="h-5 w-5 text-white" />
             </div>
@@ -560,7 +614,7 @@ export default function DashboardPage() {
                                         Arquivos Anexados
                                       </div>
                                       <div className="pl-5 space-y-1">
-                                        {attachments.map((attachment: any) => (
+                                        {attachments.map((attachment) => (
                                           <div
                                             key={attachment.id}
                                             className="flex items-center justify-between p-2 rounded-lg bg-slate-50 text-sm"
@@ -691,7 +745,7 @@ export default function DashboardPage() {
                   ) : (
                     <>
                       <FileBarChart className="h-5 w-5 mr-2" />
-                      Gerar Relatório
+                      Gerar Relatório PDF
                     </>
                   )}
                 </Button>
@@ -721,6 +775,11 @@ export default function DashboardPage() {
           </div>
           <span className="font-semibold text-slate-800">Androvox</span>
         </div>
+        
+        <Badge variant="secondary" className="gap-1">
+          <WifiOff className="h-3 w-3" />
+          Offline
+        </Badge>
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -771,135 +830,125 @@ export default function DashboardPage() {
               className="group flex flex-col items-center justify-center gap-3 h-32 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200"
             >
               <Users className="h-8 w-8" />
-              <span className="font-semibold text-sm sm:text-base text-center px-2">Iniciar Atendimento</span>
-            </button>
-
-            <button
-              onClick={() => navigate('/calendar')}
-              className="group flex flex-col items-center justify-center gap-3 h-32 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200"
-            >
-              <Calendar className="h-8 w-8" />
-              <span className="font-semibold text-sm sm:text-base text-center px-2">Agenda</span>
+              <span className="text-sm font-semibold">Iniciar Sessão</span>
             </button>
 
             <button
               onClick={() => setIsNewPatientOpen(true)}
-              className="group flex flex-col items-center justify-center gap-3 h-32 bg-white hover:bg-slate-50 text-slate-700 border-2 border-slate-200 hover:border-blue-300 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200"
+              className="group flex flex-col items-center justify-center gap-3 h-32 bg-white hover:bg-slate-50 text-slate-700 rounded-2xl border-2 border-slate-200 hover:border-slate-300 shadow-sm hover:shadow-md transition-all duration-200"
             >
-              <Plus className="h-8 w-8 text-blue-600" />
-              <span className="font-semibold text-sm sm:text-base text-center px-2">Novo Paciente</span>
+              <Plus className="h-8 w-8" />
+              <span className="text-sm font-semibold">Novo Paciente</span>
+            </button>
+
+            <button
+              onClick={() => navigate('/calendar')}
+              className="group flex flex-col items-center justify-center gap-3 h-32 bg-white hover:bg-slate-50 text-slate-700 rounded-2xl border-2 border-slate-200 hover:border-slate-300 shadow-sm hover:shadow-md transition-all duration-200"
+            >
+              <Calendar className="h-8 w-8" />
+              <span className="text-sm font-semibold">Agenda</span>
             </button>
           </div>
 
-          {/* Quick Access */}
-          <div className="text-center">
-            <p className="text-xs text-slate-400 mb-3">Acesso rápido</p>
-            <div className="flex justify-center gap-3">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => navigate('/settings')}
-                className="text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50"
-              >
-                <Settings className="h-4 w-4 mr-2" />
-                Configurações
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => navigate('/sessions')}
-                className="text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50"
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                Sessões
-              </Button>
+          {/* Quick Stats */}
+          {!dataLoading && (
+            <div className="grid grid-cols-2 gap-4">
+              <Card className="p-4 bg-white border-slate-200">
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-blue-600">{patients?.length || 0}</p>
+                  <p className="text-sm text-slate-500">Pacientes</p>
+                </div>
+              </Card>
+              <Card className="p-4 bg-white border-slate-200">
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-green-600">—</p>
+                  <p className="text-sm text-slate-500">Sessões Hoje</p>
+                </div>
+              </Card>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Select Patient Dialog */}
-      <Dialog open={isSelectPatientOpen} onOpenChange={(open) => {
-        setIsSelectPatientOpen(open);
-        if (!open) setSearchQuery('');
-      }}>
-        <DialogContent className="max-w-md bg-white border-slate-200">
+      {/* Patient Selection Dialog */}
+      <Dialog open={isSelectPatientOpen} onOpenChange={setIsSelectPatientOpen}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-slate-800">Selecionar Paciente</DialogTitle>
+            <DialogTitle>Selecionar Paciente</DialogTitle>
+            <DialogDescription>
+              Escolha um paciente para iniciar a sessão
+            </DialogDescription>
           </DialogHeader>
           
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input
-              placeholder="Buscar por nome ou ID..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 border-slate-200 focus:border-blue-400 focus:ring-blue-400"
-            />
-          </div>
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Buscar por nome ou ID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
 
-          {dataLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-16 w-full bg-slate-100" />
-              ))}
-            </div>
-          ) : filteredPatients && filteredPatients.length > 0 ? (
-            <ScrollArea className="max-h-[400px]">
-              <div className="space-y-2 pr-4">
-                {filteredPatients.map((patient) => (
-                  <button
-                    key={patient.id}
-                    className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-all text-left"
-                    onClick={() => handlePatientSelect(patient)}
-                  >
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0">
-                      <span className="text-lg font-bold text-white">
-                        {(patient.full_name || patient.public_id).charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div>
-                      <div className="font-medium text-slate-800">
-                        {patient.full_name || patient.public_id}
+            <ScrollArea className="h-64">
+              {dataLoading ? (
+                <div className="space-y-2 p-2">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : filteredPatients && filteredPatients.length > 0 ? (
+                <div className="space-y-2 p-2">
+                  {filteredPatients.map((patient) => (
+                    <button
+                      key={patient.id}
+                      onClick={() => handlePatientSelect(patient)}
+                      className="w-full flex items-center gap-3 p-3 rounded-lg bg-slate-50 hover:bg-blue-50 hover:border-blue-200 border border-transparent transition-all text-left"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                        <span className="font-semibold text-blue-600">
+                          {(patient.full_name || patient.public_id).charAt(0).toUpperCase()}
+                        </span>
                       </div>
-                      <div className="text-sm text-slate-500">
-                        ID: {patient.public_id}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-slate-800 truncate">
+                          {patient.full_name || patient.public_id}
+                        </p>
+                        <p className="text-xs text-slate-500">ID: {patient.public_id}</p>
                       </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full py-8 text-center">
+                  <Users className="h-12 w-12 text-slate-300 mb-3" />
+                  <p className="text-slate-500">
+                    {searchQuery ? 'Nenhum paciente encontrado' : 'Nenhum paciente cadastrado'}
+                  </p>
+                  {!searchQuery && (
+                    <Button
+                      variant="link"
+                      onClick={() => {
+                        setIsSelectPatientOpen(false);
+                        setIsNewPatientOpen(true);
+                      }}
+                      className="mt-2"
+                    >
+                      Cadastrar primeiro paciente
+                    </Button>
+                  )}
+                </div>
+              )}
             </ScrollArea>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-slate-500 mb-4">
-                {searchQuery ? 'Nenhum paciente encontrado' : 'Nenhum paciente cadastrado'}
-              </p>
-              <Button 
-                onClick={() => {
-                  setIsSelectPatientOpen(false);
-                  setIsNewPatientOpen(true);
-                }}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Cadastrar Paciente
-              </Button>
-            </div>
-          )}
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* New Patient Dialog */}
-      <PatientFormDialog 
-        open={isNewPatientOpen} 
+      <PatientFormDialog
+        open={isNewPatientOpen}
         onOpenChange={setIsNewPatientOpen}
-        onSuccess={(newPatient) => {
-          setIsNewPatientOpen(false);
-          if (newPatient) {
-            setSelectedPatient(newPatient);
-          }
-        }}
       />
     </div>
   );

@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabaseClient';
+import { getSessionsByPatient, getAttachmentsBySession, type LocalSession, type LocalSessionAttachment } from '@/lib/localDb';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,27 +22,6 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
-interface Session {
-  id: string;
-  session_date: string;
-  mode: 'online' | 'presencial' | 'híbrida';
-  session_type?: 'anamnese' | 'avaliacao_neuropsicologica' | 'tcc' | 'intervencao_neuropsicologica' | 'retorno' | 'outra' | null;
-  main_complaint: string | null;
-  hypotheses: string | null;
-  interventions: string | null;
-  observations: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface Attachment {
-  id: string;
-  file_name: string;
-  file_type: string;
-  file_size: number;
-  uploaded_at: string;
-}
-
 interface PatientSessionsListProps {
   patientId: string;
   showNames: boolean;
@@ -52,49 +30,36 @@ interface PatientSessionsListProps {
 export function PatientSessionsList({ patientId }: PatientSessionsListProps) {
   const navigate = useNavigate();
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
+  const [sessions, setSessions] = useState<LocalSession[]>([]);
+  const [attachmentsMap, setAttachmentsMap] = useState<Record<string, LocalSessionAttachment[]>>({});
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { data: sessions, isLoading } = useQuery({
-    queryKey: ['patient-sessions', patientId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('patient_id', patientId)
-        .order('session_date', { ascending: false });
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const sessionsData = await getSessionsByPatient(patientId);
+        const sortedSessions = sessionsData.sort((a, b) => 
+          new Date(b.session_date).getTime() - new Date(a.session_date).getTime()
+        );
+        setSessions(sortedSessions);
 
-      if (error) throw error;
-      return data as Session[];
-    },
-  });
-
-  // Fetch attachments for all sessions
-  const { data: attachmentsMap } = useQuery({
-    queryKey: ['patient-sessions-attachments', patientId],
-    queryFn: async () => {
-      if (!sessions || sessions.length === 0) return {};
-      
-      const sessionIds = sessions.map(s => s.id);
-      const { data, error } = await supabase
-        .from('session_attachments')
-        .select('*')
-        .in('session_id', sessionIds)
-        .order('uploaded_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Group attachments by session_id
-      const map: Record<string, Attachment[]> = {};
-      (data || []).forEach(attachment => {
-        if (!map[attachment.session_id]) {
-          map[attachment.session_id] = [];
+        // Load attachments for all sessions
+        const attachments: Record<string, LocalSessionAttachment[]> = {};
+        for (const session of sortedSessions) {
+          const sessionAttachments = await getAttachmentsBySession(session.id);
+          if (sessionAttachments.length > 0) {
+            attachments[session.id] = sessionAttachments;
+          }
         }
-        map[attachment.session_id].push(attachment);
-      });
-
-      return map;
-    },
-    enabled: !!sessions && sessions.length > 0,
-  });
+        setAttachmentsMap(attachments);
+      } catch (error) {
+        console.error('Error loading sessions:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, [patientId]);
 
   const toggleExpanded = (sessionId: string) => {
     setExpandedSessions(prev => {
@@ -108,25 +73,25 @@ export function PatientSessionsList({ patientId }: PatientSessionsListProps) {
     });
   };
 
-  const getModeLabel = (mode: Session['mode']) => {
-    const labels = {
+  const getModeLabel = (mode: string) => {
+    const labels: Record<string, string> = {
       online: 'Online',
       presencial: 'Presencial',
       híbrida: 'Híbrida',
     };
-    return labels[mode];
+    return labels[mode] || mode;
   };
 
-  const getModeVariant = (mode: Session['mode']) => {
-    const variants: Record<Session['mode'], 'default' | 'secondary' | 'outline'> = {
+  const getModeVariant = (mode: string): 'default' | 'secondary' | 'outline' => {
+    const variants: Record<string, 'default' | 'secondary' | 'outline'> = {
       online: 'secondary',
       presencial: 'default',
       híbrida: 'outline',
     };
-    return variants[mode];
+    return variants[mode] || 'default';
   };
 
-  const getSessionTypeLabel = (type?: Session['session_type']) => {
+  const getSessionTypeLabel = (type?: string | null) => {
     if (!type) return 'Não definido';
     const labels: Record<string, string> = {
       anamnese: 'Anamnese',

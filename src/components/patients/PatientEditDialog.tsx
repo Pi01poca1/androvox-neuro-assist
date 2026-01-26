@@ -1,10 +1,9 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
-import { Patient } from '@/types/patient';
+import { updatePatient, type LocalPatient } from '@/lib/localDb';
 import {
   Dialog,
   DialogContent,
@@ -66,14 +65,14 @@ const patientEditSchema = z.object({
 type PatientEditFormData = z.infer<typeof patientEditSchema>;
 
 interface PatientEditDialogProps {
-  patient: Patient;
+  patient: LocalPatient;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 export function PatientEditDialog({ patient, open, onOpenChange }: PatientEditDialogProps) {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<PatientEditFormData>({
     resolver: zodResolver(patientEditSchema),
@@ -85,64 +84,33 @@ export function PatientEditDialog({ patient, open, onOpenChange }: PatientEditDi
     },
   });
 
-  const updatePatientMutation = useMutation({
-    mutationFn: async (data: PatientEditFormData) => {
-      const updateData: any = {
+  const onSubmit = async (data: PatientEditFormData) => {
+    setIsSubmitting(true);
+
+    try {
+      await updatePatient(patient.id, {
+        full_name: data.full_name?.trim() || null,
+        birth_date: data.birth_date || null,
         gender: data.gender,
-      };
+        notes_summary: data.notes_summary?.trim() || null,
+      });
 
-      // Adiciona campos opcionais apenas se preenchidos
-      if (data.full_name && data.full_name.trim()) {
-        updateData.full_name = data.full_name.trim();
-      } else {
-        updateData.full_name = null;
-      }
-
-      if (data.birth_date) {
-        updateData.birth_date = data.birth_date;
-      } else {
-        updateData.birth_date = null;
-      }
-
-      if (data.notes_summary && data.notes_summary.trim()) {
-        updateData.notes_summary = data.notes_summary.trim();
-      } else {
-        updateData.notes_summary = null;
-      }
-
-      const { data: updatedPatient, error } = await supabase
-        .from('patients')
-        .update(updateData)
-        .eq('id', patient.id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return updatedPatient;
-    },
-    onSuccess: () => {
       toast({
         title: 'Paciente atualizado',
         description: 'As informações foram salvas com sucesso.',
       });
 
-      // Invalida queries relacionadas
-      queryClient.invalidateQueries({ queryKey: ['patient', patient.id] });
-      queryClient.invalidateQueries({ queryKey: ['patients'] });
-
       onOpenChange(false);
-    },
-    onError: (error: Error) => {
+    } catch (error) {
+      console.error('Error updating patient:', error);
       toast({
         title: 'Erro ao atualizar paciente',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
         variant: 'destructive',
       });
-    },
-  });
-
-  const onSubmit = (data: PatientEditFormData) => {
-    updatePatientMutation.mutate(data);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -173,7 +141,7 @@ export function PatientEditDialog({ patient, open, onOpenChange }: PatientEditDi
                       />
                     </FormControl>
                     <FormDescription>
-                      Nome visível apenas em modo offline com chave USB
+                      Nome visível apenas com chave USB presente
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -250,12 +218,12 @@ export function PatientEditDialog({ patient, open, onOpenChange }: PatientEditDi
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={updatePatientMutation.isPending}
+                disabled={isSubmitting}
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={updatePatientMutation.isPending}>
-                {updatePatientMutation.isPending && (
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 Salvar Alterações

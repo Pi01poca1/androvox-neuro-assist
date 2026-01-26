@@ -1,11 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PatientFormDialog } from '@/components/patients/PatientFormDialog';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/hooks/useAuth';
 import { usePrivacyMode } from '@/hooks/usePrivacyMode';
-import { Patient } from '@/types/patient';
+import { getPatientsByClinic, type LocalPatient } from '@/lib/localDb';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,37 +17,53 @@ export default function PatientsPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
-  const { profile } = useAuth();
-  const { privacyMode, usbStatus, isOnline } = usePrivacyMode();
+  const { clinicId } = useAuth();
+  const { privacyMode, usbStatus } = usePrivacyMode();
   const { toast } = useToast();
 
-  // Determine if names should be shown
-  const showNames = privacyMode === 'NOME' && usbStatus === 'present' && !isOnline;
+  // Local data states
+  const [patients, setPatients] = useState<LocalPatient[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { data: patients, isLoading } = useQuery({
-    queryKey: ['patients', profile?.clinic_id],
-    queryFn: async () => {
-      if (!profile?.clinic_id) return [];
-      
-      const { data, error } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('clinic_id', profile.clinic_id)
-        .order('created_at', { ascending: false });
+  // Determine if names should be shown (offline mode with USB)
+  const showNames = privacyMode === 'NOME' && usbStatus === 'present';
 
-      if (error) {
+  // Load patients from local DB
+  useEffect(() => {
+    const loadPatients = async () => {
+      if (!clinicId) {
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const data = await getPatientsByClinic(clinicId);
+        setPatients(data.sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        ));
+      } catch (error) {
+        console.error('Error loading patients:', error);
         toast({
           title: "Erro ao carregar pacientes",
-          description: error.message,
+          description: "Não foi possível carregar os dados locais.",
           variant: "destructive",
         });
-        throw error;
+      } finally {
+        setIsLoading(false);
       }
+    };
+    loadPatients();
+  }, [clinicId, toast]);
 
-      return data as Patient[];
-    },
-    enabled: !!profile?.clinic_id,
-  });
+  // Refresh patients when dialog closes
+  const handleDialogChange = async (open: boolean) => {
+    setIsFormDialogOpen(open);
+    if (!open && clinicId) {
+      const data = await getPatientsByClinic(clinicId);
+      setPatients(data.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      ));
+    }
+  };
 
   // Filter patients based on search query
   const filteredPatients = patients?.filter((patient) => {
@@ -84,7 +98,7 @@ export default function PatientsPage() {
               <h3 className="font-semibold text-sm">Modo ID Ativo</h3>
               <p className="text-sm text-muted-foreground mt-1">
                 Os nomes dos pacientes estão ocultos para maior segurança. 
-                Para visualizar nomes, conecte a chave USB e ative o modo offline.
+                Para visualizar nomes, conecte a chave USB e ative o modo Nome.
               </p>
             </div>
           </div>
@@ -98,7 +112,7 @@ export default function PatientsPage() {
             <div className="flex-1">
               <h3 className="font-semibold text-sm">Modo Nome Ativo</h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Nomes de pacientes visíveis. Sistema em modo offline com chave USB presente.
+                Nomes de pacientes visíveis. Chave USB presente.
               </p>
             </div>
           </div>
@@ -197,7 +211,7 @@ export default function PatientsPage() {
       {/* Dialog de Cadastro */}
       <PatientFormDialog 
         open={isFormDialogOpen} 
-        onOpenChange={setIsFormDialogOpen} 
+        onOpenChange={handleDialogChange} 
       />
     </div>
   );
