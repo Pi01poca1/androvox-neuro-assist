@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { 
@@ -47,23 +47,24 @@ export default function DashboardPage() {
   const [attachmentsMap, setAttachmentsMap] = useState<Record<string, LocalSessionAttachment[]>>({});
 
   // Load patients from local DB
-  useEffect(() => {
-    const loadPatients = async () => {
-      if (!clinicId) {
-        setIsLoading(false);
-        return;
-      }
-      try {
-        const data = await getPatientsByClinic(clinicId);
-        setPatients(data.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '')));
-      } catch (error) {
-        console.error('Error loading patients:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadPatients();
+  const loadPatients = useCallback(async () => {
+    if (!clinicId) {
+      setIsLoading(false);
+      return;
+    }
+    try {
+      const data = await getPatientsByClinic(clinicId);
+      setPatients(data.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '')));
+    } catch (error) {
+      console.error('Error loading patients:', error);
+    } finally {
+      setIsLoading(false);
+    }
   }, [clinicId]);
+
+  useEffect(() => {
+    loadPatients();
+  }, [loadPatients]);
 
   // Load sessions when patient is selected
   useEffect(() => {
@@ -949,6 +950,7 @@ export default function DashboardPage() {
       <PatientFormDialog
         open={isNewPatientOpen}
         onOpenChange={setIsNewPatientOpen}
+        onSuccess={() => loadPatients()}
       />
     </div>
   );
