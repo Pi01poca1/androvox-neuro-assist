@@ -16,6 +16,7 @@ export interface LocalUser {
 export interface LocalClinic {
   id: string;
   name: string;
+  logo_data: string | null; // Base64 encoded logo image
   settings: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
@@ -322,13 +323,14 @@ export async function deleteUser(id: string): Promise<void> {
 
 // ============ CLINIC OPERATIONS ============
 
-export async function createClinic(name: string): Promise<LocalClinic> {
+export async function createClinic(name: string, logoData?: string | null): Promise<LocalClinic> {
   const db = await getLocalDB();
   const now = new Date().toISOString();
   
   const clinic: LocalClinic = {
     id: generateUUID(),
     name,
+    logo_data: logoData || null,
     settings: null,
     created_at: now,
     updated_at: now,
