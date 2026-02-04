@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Users, 
@@ -11,6 +12,8 @@ import {
 import { useMemo } from 'react';
 import { NavLink } from '@/components/NavLink';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useAuth } from '@/hooks/useAuth';
+import { getClinicById, type LocalClinic } from '@/lib/localDb';
 import {
   Sidebar as SidebarUI,
   SidebarContent,
@@ -25,6 +28,14 @@ import {
 
 export function Sidebar() {
   const permissions = usePermissions();
+  const { clinicId } = useAuth();
+  const [clinic, setClinic] = useState<LocalClinic | null>(null);
+  
+  useEffect(() => {
+    if (clinicId) {
+      getClinicById(clinicId).then(c => setClinic(c || null));
+    }
+  }, [clinicId]);
   
   const menuItems = useMemo(() => {
     const items = [
@@ -48,15 +59,26 @@ export function Sidebar() {
     
     return items;
   }, [permissions]);
+
   return (
     <SidebarUI className="border-r border-border">
       <SidebarHeader className="border-b border-border p-4">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <Brain className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground">Androvox Assist</h2>
+        <div className="flex items-center gap-3">
+          {clinic?.logo_data ? (
+            <img 
+              src={clinic.logo_data} 
+              alt="Logo" 
+              className="w-10 h-10 object-contain rounded-lg border bg-background"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
+              <Brain className="h-5 w-5 text-primary-foreground" />
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <h2 className="font-semibold text-foreground truncate">
+              {clinic?.name || 'Androvox Assist'}
+            </h2>
             <p className="text-xs text-muted-foreground">Neuropsicologia</p>
           </div>
         </div>

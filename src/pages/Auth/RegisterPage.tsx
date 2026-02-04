@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Brain, Loader2, Briefcase, WifiOff, Info } from 'lucide-react';
+import { Brain, Loader2, Briefcase, WifiOff, Info, Upload, X, Image } from 'lucide-react';
 import type { AppRole } from '@/types/roles';
 
 export default function RegisterPage() {
@@ -16,7 +16,10 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [clinicName, setClinicName] = useState('');
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoData, setLogoData] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { signUp, user } = useAuth();
   const navigate = useNavigate();
@@ -26,6 +29,37 @@ export default function RegisterPage() {
       navigate('/dashboard', { replace: true });
     }
   }, [user, navigate]);
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      return;
+    }
+    
+    // Max size 2MB
+    if (file.size > 2 * 1024 * 1024) {
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      setLogoPreview(base64);
+      setLogoData(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeLogo = () => {
+    setLogoPreview(null);
+    setLogoData(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +78,8 @@ export default function RegisterPage() {
       password, 
       fullName, 
       'profissional' as AppRole,
-      clinicName
+      clinicName,
+      logoData
     );
     
     if (!error) {
@@ -105,14 +140,63 @@ export default function RegisterPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="clinicName">Nome da Clínica</Label>
+              <Label htmlFor="clinicName">Nome do Consultório</Label>
               <Input
                 id="clinicName"
                 type="text"
-                placeholder="Nome da sua clínica"
+                placeholder="Nome do seu consultório"
                 value={clinicName}
                 onChange={(e) => setClinicName(e.target.value)}
                 disabled={loading}
+              />
+            </div>
+
+            {/* Logo Upload */}
+            <div className="space-y-2">
+              <Label>Logo do Consultório (opcional)</Label>
+              {logoPreview ? (
+                <div className="relative w-full">
+                  <div className="flex items-center gap-4 p-4 border rounded-lg bg-background">
+                    <img 
+                      src={logoPreview} 
+                      alt="Logo preview" 
+                      className="w-16 h-16 object-contain rounded-md border"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Logo carregada</p>
+                      <p className="text-xs text-muted-foreground">Clique no X para remover</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={removeLogo}
+                      className="absolute top-2 right-2"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                >
+                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                    <Image className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-medium">Clique para enviar logo</p>
+                    <p className="text-xs text-muted-foreground">PNG, JPG até 2MB</p>
+                  </div>
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleLogoUpload}
+                className="hidden"
               />
             </div>
 
