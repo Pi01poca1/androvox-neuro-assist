@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Shield, Key, Wifi, Settings as SettingsIcon, Lock, Unlock, Users, Database, Image } from 'lucide-react';
+import { Shield, Key, Wifi, Settings as SettingsIcon, Lock, Unlock, Users, Database, Image, AlertTriangle } from 'lucide-react';
 import { usePrivacyMode } from '@/hooks/usePrivacyMode';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,8 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { OfflineSyncIndicator } from '@/components/offline/OfflineSyncIndicator';
 import { InstallPWA } from '@/components/offline/InstallPWA';
-import { TeamManagement } from '@/components/settings/TeamManagement';
+import { LocalTeamManagement } from '@/components/settings/LocalTeamManagement';
 import { BackupManager } from '@/components/backup/BackupManager';
+import { AccountDangerZone } from '@/components/settings/AccountDangerZone';
 import { getClinicById, updateClinic, type LocalClinic } from '@/lib/localDb';
 
 export default function SettingsPage() {
@@ -125,7 +126,7 @@ export default function SettingsPage() {
       <InstallPWA />
 
       <Tabs defaultValue="clinic" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           {isProfessional && (
             <TabsTrigger value="clinic">
               <Image className="h-4 w-4 mr-2" />
@@ -146,6 +147,10 @@ export default function SettingsPage() {
               Equipe
             </TabsTrigger>
           )}
+          <TabsTrigger value="danger">
+            <AlertTriangle className="h-4 w-4 mr-2" />
+            Conta
+          </TabsTrigger>
         </TabsList>
 
         {/* Clinic Settings Tab */}
@@ -417,9 +422,14 @@ export default function SettingsPage() {
 
         {isProfessional && (
           <TabsContent value="team" className="mt-6">
-            <TeamManagement />
+            <LocalTeamManagement />
           </TabsContent>
         )}
+
+        {/* Danger Zone Tab */}
+        <TabsContent value="danger" className="mt-6">
+          <AccountDangerZone />
+        </TabsContent>
       </Tabs>
     </div>
   );
