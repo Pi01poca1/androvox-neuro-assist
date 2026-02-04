@@ -107,14 +107,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
     fullName: string,
     role: AppRole,
-    clinicName?: string
+    clinicName?: string,
+    logoData?: string | null
   ): Promise<{ error: Error | null }> => {
     try {
       // For professionals, create a new clinic
       let clinicId: string;
       
       if (role === 'profissional') {
-        const clinic = await createClinic(clinicName || 'Minha Clínica');
+        const clinic = await createClinic(clinicName || 'Minha Clínica', logoData);
         clinicId = clinic.id;
       } else {
         // For secretaries, they need to be invited to an existing clinic

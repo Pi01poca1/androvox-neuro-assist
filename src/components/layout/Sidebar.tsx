@@ -36,6 +36,20 @@ export function Sidebar() {
       getClinicById(clinicId).then(c => setClinic(c || null));
     }
   }, [clinicId]);
+
+  // Refresh clinic header (name/logo) when clinic is updated (e.g., saved in Settings)
+  useEffect(() => {
+    if (!clinicId) return;
+
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<{ clinicId?: string }>;
+      if (custom.detail?.clinicId && custom.detail.clinicId !== clinicId) return;
+      getClinicById(clinicId).then(c => setClinic(c || null));
+    };
+
+    window.addEventListener('androvox:clinic-updated', handler);
+    return () => window.removeEventListener('androvox:clinic-updated', handler);
+  }, [clinicId]);
   
   const menuItems = useMemo(() => {
     const items = [
