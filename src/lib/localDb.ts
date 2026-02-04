@@ -337,6 +337,11 @@ export async function createClinic(name: string, logoData?: string | null): Prom
   };
 
   await db.put('clinics', clinic);
+
+  // Notify UI listeners (e.g., Sidebar) that clinic data has changed
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('androvox:clinic-updated', { detail: { clinicId: clinic.id } }));
+  }
   return clinic;
 }
 
@@ -356,6 +361,11 @@ export async function updateClinic(id: string, updates: Partial<LocalClinic>): P
     updated_at: new Date().toISOString(),
   };
   await db.put('clinics', updated);
+
+  // Notify UI listeners (e.g., Sidebar) that clinic data has changed
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('androvox:clinic-updated', { detail: { clinicId: id } }));
+  }
   return updated;
 }
 
