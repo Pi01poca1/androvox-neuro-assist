@@ -125,8 +125,8 @@ export default function SettingsPage() {
 
       <InstallPWA />
 
-      <Tabs defaultValue="clinic" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+      <Tabs defaultValue={isProfessional ? "clinic" : "security"} className="w-full">
+        <TabsList className={`grid w-full ${isProfessional ? 'grid-cols-5' : 'grid-cols-3'}`}>
           {isProfessional && (
             <TabsTrigger value="clinic">
               <Image className="h-4 w-4 mr-2" />
