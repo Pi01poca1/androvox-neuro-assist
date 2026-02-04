@@ -30,27 +30,51 @@ export default function RegisterPage() {
     }
   }, [user, navigate]);
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Convert ArrayBuffer to Base64 in chunks to avoid stack overflow
+  const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 8192; // Process 8KB at a time
+    let binary = "";
+
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+      for (let j = 0; j < chunk.length; j++) {
+        binary += String.fromCharCode(chunk[j]);
+      }
+    }
+
+    return btoa(binary);
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
     // Validate file type
     if (!file.type.startsWith('image/')) {
+      console.error('Invalid file type:', file.type);
       return;
     }
     
     // Max size 2MB
     if (file.size > 2 * 1024 * 1024) {
+      console.error('File too large:', file.size);
       return;
     }
-    
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      setLogoPreview(base64);
-      setLogoData(base64);
-    };
-    reader.readAsDataURL(file);
+
+    try {
+      // Read file as ArrayBuffer and convert to base64 in chunks
+      const arrayBuffer = await file.arrayBuffer();
+      const base64Data = arrayBufferToBase64(arrayBuffer);
+      const mimeType = file.type;
+      const dataUrl = `data:${mimeType};base64,${base64Data}`;
+      
+      console.log('Logo processed successfully, size:', dataUrl.length);
+      setLogoPreview(dataUrl);
+      setLogoData(dataUrl);
+    } catch (error) {
+      console.error('Error processing logo:', error);
+    }
   };
 
   const removeLogo = () => {
