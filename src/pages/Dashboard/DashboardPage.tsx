@@ -370,8 +370,6 @@ export default function DashboardPage() {
       doc.setFont('helvetica', 'normal');
       doc.text(`Paciente: ${selectedPatient.full_name || selectedPatient.public_id}`, 20, yPos);
       yPos += 7;
-      doc.text(`ID: ${selectedPatient.public_id}`, 20, yPos);
-      yPos += 7;
       doc.text(`Data: ${format(new Date(), "dd/MM/yyyy", { locale: ptBR })}`, 20, yPos);
       yPos += 15;
       
@@ -417,13 +415,38 @@ export default function DashboardPage() {
             doc.text(lines, 25, yPos);
             yPos += lines.length * 5 + 3;
           }
+          
+          // Include attachments info
+          const sessionAttachments = attachmentsMap?.[session.id] || [];
+          if (sessionAttachments.length > 0) {
+            if (yPos > 260) {
+              doc.addPage();
+              yPos = 20;
+            }
+            doc.setFont('helvetica', 'italic');
+            doc.text(`Anexos (${sessionAttachments.length}):`, 25, yPos);
+            yPos += 5;
+            for (const attachment of sessionAttachments) {
+              if (yPos > 280) {
+                doc.addPage();
+                yPos = 20;
+              }
+              doc.text(`• ${attachment.file_name}`, 30, yPos);
+              yPos += 4;
+            }
+            doc.setFont('helvetica', 'normal');
+            yPos += 2;
+          }
         }
         
         yPos += 5;
       }
       
       // Save/download
-      doc.save(`relatorio_${selectedPatient.public_id}_${format(new Date(), 'yyyyMMdd')}.pdf`);
+      const fileName = selectedPatient.full_name 
+        ? `relatorio_${selectedPatient.full_name.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`
+        : `relatorio_paciente_${format(new Date(), 'yyyyMMdd')}.pdf`;
+      doc.save(fileName);
       
     } catch (error) {
       console.error('Error generating report:', error);
