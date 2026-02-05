@@ -1,5 +1,4 @@
-import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   FileText, 
   Download, 
@@ -11,8 +10,15 @@ import {
   FileCheck,
   ClipboardList
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { 
+  getPatientsByClinic, 
+  getSessionsByPatient,
+  getAttachmentsBySession,
+  type LocalPatient,
+  type LocalSession,
+  type LocalSessionAttachment
+} from '@/lib/localDb';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -26,14 +32,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { format, subMonths, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
+import jsPDF from 'jspdf';
 
 type ReportFormat = 'complete' | 'synthesis';
 
 export default function ReportsPage() {
-  const { profile } = useAuth();
+  const { clinicId } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -44,58 +51,68 @@ export default function ReportsPage() {
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Fetch patients
-  const { data: patients = [] } = useQuery({
-    queryKey: ['patients-for-reports', profile?.clinic_id],
-    queryFn: async () => {
-      if (!profile?.clinic_id) return [];
-      const { data, error } = await supabase
-        .from('patients')
-        .select('id, public_id, full_name, birth_date, gender, created_at')
-        .eq('clinic_id', profile.clinic_id)
-        .order('full_name');
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!profile?.clinic_id,
-  });
+  // Local data states
+  const [patients, setPatients] = useState<LocalPatient[]>([]);
+  const [sessionsPreview, setSessionsPreview] = useState<LocalSession[] | null>(null);
+  const [attachmentsMap, setAttachmentsMap] = useState<Record<string, LocalSessionAttachment[]>>({});
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch clinic info
-  const { data: clinic } = useQuery({
-    queryKey: ['clinic-info', profile?.clinic_id],
-    queryFn: async () => {
-      if (!profile?.clinic_id) return null;
-      const { data, error } = await supabase
-        .from('clinics')
-        .select('name')
-        .eq('id', profile.clinic_id)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!profile?.clinic_id,
-  });
+  // Load patients from local DB
+  const loadPatients = useCallback(async () => {
+    if (!clinicId) {
+      setIsLoading(false);
+      return;
+    }
+    try {
+      const data = await getPatientsByClinic(clinicId);
+      setPatients(data.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '')));
+    } catch (error) {
+      console.error('Error loading patients:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [clinicId]);
 
-  // Fetch sessions preview for selected patient
-  const { data: sessionsPreview } = useQuery({
-    queryKey: ['sessions-preview', selectedPatient, startDate, endDate],
-    queryFn: async () => {
-      if (!profile?.clinic_id || !selectedPatient) return null;
-      
-      const { data, error } = await supabase
-        .from('sessions')
-        .select('id, session_date, session_type, status, mode')
-        .eq('clinic_id', profile.clinic_id)
-        .eq('patient_id', selectedPatient)
-        .gte('session_date', startDate)
-        .lte('session_date', `${endDate}T23:59:59`)
-        .order('session_date', { ascending: true });
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!profile?.clinic_id && !!selectedPatient,
-  });
+  useEffect(() => {
+    loadPatients();
+  }, [loadPatients]);
+
+  // Load sessions for selected patient
+  useEffect(() => {
+    const loadSessions = async () => {
+      if (!selectedPatient) {
+        setSessionsPreview(null);
+        return;
+      }
+      try {
+        const sessions = await getSessionsByPatient(selectedPatient);
+        
+        // Filter by date range
+        const filtered = sessions.filter(session => {
+          const sessionDate = new Date(session.session_date);
+          const start = new Date(startDate);
+          const end = new Date(endDate + 'T23:59:59');
+          return sessionDate >= start && sessionDate <= end;
+        });
+        
+        filtered.sort((a, b) => new Date(a.session_date).getTime() - new Date(b.session_date).getTime());
+        setSessionsPreview(filtered);
+
+        // Load attachments for all sessions
+        const attachments: Record<string, LocalSessionAttachment[]> = {};
+        for (const session of filtered) {
+          const sessionAttachments = await getAttachmentsBySession(session.id);
+          if (sessionAttachments.length > 0) {
+            attachments[session.id] = sessionAttachments;
+          }
+        }
+        setAttachmentsMap(attachments);
+      } catch (error) {
+        console.error('Error loading sessions:', error);
+      }
+    };
+    loadSessions();
+  }, [selectedPatient, startDate, endDate]);
 
   const selectedPatientData = useMemo(() => 
     patients.find(p => p.id === selectedPatient),
@@ -106,7 +123,7 @@ export default function ReportsPage() {
     if (!sessionsPreview) return null;
     
     const total = sessionsPreview.length;
-    const realized = sessionsPreview.filter(s => (s.status as string) === 'concluída' || (s.status as string) === 'realizada').length;
+    const realized = sessionsPreview.filter(s => s.status === 'concluída').length;
     const scheduled = sessionsPreview.filter(s => s.status === 'agendada').length;
     const canceled = sessionsPreview.filter(s => s.status === 'cancelada').length;
     
@@ -132,113 +149,118 @@ export default function ReportsPage() {
   };
 
   const generateReport = async () => {
-    if (!profile?.clinic_id || !selectedPatient) {
-      console.log('Missing profile or patient', { clinic_id: profile?.clinic_id, selectedPatient });
+    if (!selectedPatient || !sessionsPreview || sessionsPreview.length === 0 || !selectedPatientData) {
       return;
     }
 
     setIsGenerating(true);
-    console.log('Generating report...', { reportFormat, selectedPatient, startDate, endDate });
-
-    // Open the window immediately to avoid popup blockers (must be within user gesture)
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast({
-        title: 'Pop-up bloqueado',
-        description: 'Permita pop-ups no navegador para gerar e imprimir/baixar o PDF.',
-        variant: 'destructive',
-      });
-      setIsGenerating(false);
-      return;
-    }
-
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>Gerando relatório...</title>
-        </head>
-        <body style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; padding: 24px;">
-          <h2 style="margin: 0 0 8px;">Gerando relatório...</h2>
-          <p style="margin: 0; opacity: .75;">Aguarde alguns segundos.</p>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
 
     try {
-      // Fetch full session data
-      const { data: sessions, error } = await supabase
-        .from('sessions')
-        .select('*, patients(id, public_id, full_name, birth_date, gender, created_at)')
-        .eq('clinic_id', profile.clinic_id)
-        .eq('patient_id', selectedPatient)
-        .gte('session_date', startDate)
-        .lte('session_date', `${endDate}T23:59:59`)
-        .order('session_date', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching sessions:', error);
-        throw error;
-      }
-
-      console.log('Sessions fetched:', sessions?.length);
-
-      const reportType = reportFormat === 'complete' ? 'patient_evolution' : 'official_summary';
-      console.log('Report type:', reportType);
-
-      // Call edge function
-      const { data, error: fnError } = await supabase.functions.invoke('generate-report-pdf', {
-        body: {
-          reportType,
-          data: {
-            sessions,
-            patient: selectedPatientData,
-            clinicName: clinic?.name,
-            professionalName: profile?.full_name,
-            dateRange: { start: startDate, end: endDate },
-          },
-        },
-      });
-
-      console.log('Edge function response:', { data, fnError });
-
-      if (fnError) {
-        console.error('Edge function error:', fnError);
-        throw fnError;
-      }
-
-      const html = (data as any)?.html;
-      if (!html) {
-        throw new Error('Resposta inválida do gerador de relatório');
-      }
-
-      // Render report into the already-opened window
-      printWindow.document.open();
-      printWindow.document.write(html);
-      printWindow.document.close();
-
-      setTimeout(() => {
-        try {
-          printWindow.focus();
-          printWindow.print();
-        } catch {
-          // ignore
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let yPos = 20;
+      
+      // Header
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Androvox Assist', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 10;
+      
+      doc.setFontSize(14);
+      doc.text(reportFormat === 'complete' ? 'Relatório Completo' : 'Relatório Síntese', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 15;
+      
+      // Patient info
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Paciente: ${selectedPatientData.full_name || 'Não informado'}`, 20, yPos);
+      yPos += 7;
+      doc.text(`Período: ${format(new Date(startDate), 'dd/MM/yyyy')} a ${format(new Date(endDate), 'dd/MM/yyyy')}`, 20, yPos);
+      yPos += 7;
+      doc.text(`Data do relatório: ${format(new Date(), "dd/MM/yyyy", { locale: ptBR })}`, 20, yPos);
+      yPos += 15;
+      
+      // Sessions
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Sessões Registradas (${sessionsPreview.length})`, 20, yPos);
+      yPos += 10;
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      
+      for (const session of sessionsPreview) {
+        if (yPos > 270) {
+          doc.addPage();
+          yPos = 20;
         }
-      }, 500);
+        
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${format(new Date(session.session_date), "dd/MM/yyyy", { locale: ptBR })} - ${typeLabels[session.session_type || 'outra'] || session.session_type}`, 20, yPos);
+        yPos += 6;
+        
+        doc.setFont('helvetica', 'normal');
+        if (session.main_complaint) {
+          const lines = doc.splitTextToSize(`Queixa: ${session.main_complaint}`, pageWidth - 40);
+          doc.text(lines, 25, yPos);
+          yPos += lines.length * 5 + 3;
+        }
+        
+        if (reportFormat === 'complete') {
+          if (session.hypotheses) {
+            const lines = doc.splitTextToSize(`Hipóteses: ${session.hypotheses}`, pageWidth - 40);
+            doc.text(lines, 25, yPos);
+            yPos += lines.length * 5 + 3;
+          }
+          if (session.interventions) {
+            const lines = doc.splitTextToSize(`Intervenções: ${session.interventions}`, pageWidth - 40);
+            doc.text(lines, 25, yPos);
+            yPos += lines.length * 5 + 3;
+          }
+          if (session.observations) {
+            const lines = doc.splitTextToSize(`Observações: ${session.observations}`, pageWidth - 40);
+            doc.text(lines, 25, yPos);
+            yPos += lines.length * 5 + 3;
+          }
+          
+          // Include attachments info
+          const sessionAttachments = attachmentsMap?.[session.id] || [];
+          if (sessionAttachments.length > 0) {
+            if (yPos > 260) {
+              doc.addPage();
+              yPos = 20;
+            }
+            doc.setFont('helvetica', 'italic');
+            doc.text(`Anexos (${sessionAttachments.length}):`, 25, yPos);
+            yPos += 5;
+            for (const attachment of sessionAttachments) {
+              if (yPos > 280) {
+                doc.addPage();
+                yPos = 20;
+              }
+              doc.text(`• ${attachment.file_name}`, 30, yPos);
+              yPos += 4;
+            }
+            doc.setFont('helvetica', 'normal');
+            yPos += 2;
+          }
+        }
+        
+        yPos += 5;
+      }
+      
+      // Save/download
+      const fileName = selectedPatientData.full_name 
+        ? `relatorio_${selectedPatientData.full_name.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`
+        : `relatorio_paciente_${format(new Date(), 'yyyyMMdd')}.pdf`;
+      doc.save(fileName);
 
       toast({
         title: 'Relatório gerado',
-        description: 'O relatório foi gerado e está pronto para impressão/download.',
+        description: 'O PDF foi baixado com sucesso.',
       });
     } catch (error) {
       console.error('Error generating report:', error);
-      try {
-        printWindow.close();
-      } catch {
-        // ignore
-      }
       toast({
         title: 'Erro ao gerar relatório',
         description: 'Não foi possível gerar o relatório. Tente novamente.',
@@ -324,14 +346,13 @@ export default function ReportsPage() {
               {selectedPatientData && (
                 <div className="bg-muted/50 rounded-lg p-4 mt-4">
                   <div className="text-sm space-y-1">
-                    <p><strong>Código:</strong> {selectedPatientData.public_id}</p>
                     {selectedPatientData.full_name && (
                       <p><strong>Nome:</strong> {selectedPatientData.full_name}</p>
                     )}
                     {selectedPatientData.birth_date && (
-                      <p><strong>Data de Nascimento:</strong> {format(parseISO(selectedPatientData.birth_date), 'dd/MM/yyyy')}</p>
+                      <p><strong>Data de Nascimento:</strong> {format(new Date(selectedPatientData.birth_date), 'dd/MM/yyyy')}</p>
                     )}
-                    <p><strong>Cadastrado em:</strong> {format(parseISO(selectedPatientData.created_at), 'dd/MM/yyyy')}</p>
+                    <p><strong>Cadastrado em:</strong> {format(new Date(selectedPatientData.created_at), 'dd/MM/yyyy')}</p>
                   </div>
                 </div>
               )}
@@ -463,7 +484,7 @@ export default function ReportsPage() {
 
                   {sessionStats.firstSession && sessionStats.lastSession && (
                     <p className="text-xs text-muted-foreground pt-2">
-                      Período de atendimento: {format(parseISO(sessionStats.firstSession.session_date), 'dd/MM/yyyy')} a {format(parseISO(sessionStats.lastSession.session_date), 'dd/MM/yyyy')}
+                      Período de atendimento: {format(new Date(sessionStats.firstSession.session_date), 'dd/MM/yyyy')} a {format(new Date(sessionStats.lastSession.session_date), 'dd/MM/yyyy')}
                     </p>
                   )}
                 </div>
@@ -501,7 +522,7 @@ export default function ReportsPage() {
               {/* Summary of selection */}
               <div className="bg-muted/50 rounded-lg p-4 text-sm space-y-2">
                 <p><strong>Paciente:</strong> {selectedPatientData?.full_name || selectedPatientData?.public_id}</p>
-                <p><strong>Período:</strong> {format(parseISO(startDate), 'dd/MM/yyyy', { locale: ptBR })} a {format(parseISO(endDate), 'dd/MM/yyyy', { locale: ptBR })}</p>
+                <p><strong>Período:</strong> {format(new Date(startDate), 'dd/MM/yyyy', { locale: ptBR })} a {format(new Date(endDate), 'dd/MM/yyyy', { locale: ptBR })}</p>
                 <p><strong>Sessões:</strong> {sessionStats?.total} encontradas</p>
               </div>
 
