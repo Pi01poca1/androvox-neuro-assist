@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
- import { usePermissions } from '@/hooks/usePermissions';
+import { usePermissions } from '@/hooks/usePermissions';
 import { 
   getPatientsByClinic, 
   getSessionsByPatient, 
@@ -29,6 +29,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
+import { DynamicClinicHeader } from '@/components/layout/DynamicClinicHeader';
  
 // Secretary Dashboard - simplified view with agenda access
 function SecretaryDashboard() {
@@ -61,12 +62,7 @@ function SecretaryDashboard() {
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-background to-muted/30">
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 bg-background border-b border-border shadow-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <Brain className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="font-semibold text-foreground">Androvox</span>
-        </div>
+        <DynamicClinicHeader clinicId={clinicId} />
         
         <Badge variant="secondary" className="gap-1">
           <WifiOff className="h-3 w-3" />
@@ -471,16 +467,12 @@ export default function DashboardPage() {
             Voltar
           </Button>
           
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="gap-1">
-              <WifiOff className="h-3 w-3" />
-              Offline
-            </Badge>
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-              <Brain className="h-5 w-5 text-white" />
-            </div>
-            <span className="font-semibold text-slate-800">Androvox</span>
-          </div>
+          <DynamicClinicHeader clinicId={clinicId} />
+
+          <Badge variant="secondary" className="gap-1">
+            <WifiOff className="h-3 w-3" />
+            Offline
+          </Badge>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -940,13 +932,8 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 to-white">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200 shadow-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-            <Brain className="h-5 w-5 text-white" />
-          </div>
-          <span className="font-semibold text-slate-800">Androvox</span>
-        </div>
+      <header className="flex items-center justify-between px-6 py-4 bg-background border-b border-border shadow-sm">
+        <DynamicClinicHeader clinicId={clinicId} />
         
         <Badge variant="secondary" className="gap-1">
           <WifiOff className="h-3 w-3" />
