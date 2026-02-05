@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+ import { usePermissions } from '@/hooks/usePermissions';
 import { 
   getPatientsByClinic, 
   getSessionsByPatient, 
@@ -28,10 +29,140 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
+ 
+ // Secretary Dashboard - simplified view
+ function SecretaryDashboard() {
+   const navigate = useNavigate();
+   const { profile, signOut, clinicId } = useAuth();
+   const [isNewPatientOpen, setIsNewPatientOpen] = useState(false);
+   const [patients, setPatients] = useState<LocalPatient[]>([]);
+   const [isLoading, setIsLoading] = useState(true);
+ 
+   const loadPatients = useCallback(async () => {
+     if (!clinicId) {
+       setIsLoading(false);
+       return;
+     }
+     try {
+       const data = await getPatientsByClinic(clinicId);
+       setPatients(data.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '')));
+     } catch (error) {
+       console.error('Error loading patients:', error);
+     } finally {
+       setIsLoading(false);
+     }
+   }, [clinicId]);
+ 
+   useEffect(() => {
+     loadPatients();
+   }, [loadPatients]);
+ 
+   return (
+     <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 to-white">
+       {/* Header */}
+       <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-200 shadow-sm">
+         <div className="flex items-center gap-2">
+           <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+             <Brain className="h-5 w-5 text-white" />
+           </div>
+           <span className="font-semibold text-slate-800">Androvox</span>
+         </div>
+         
+         <Badge variant="secondary" className="gap-1">
+           <WifiOff className="h-3 w-3" />
+           Secretário
+         </Badge>
+         
+         <DropdownMenu>
+           <DropdownMenuTrigger asChild>
+             <Button variant="ghost" size="icon" className="text-slate-600 hover:bg-slate-100">
+               <Menu className="h-5 w-5" />
+             </Button>
+           </DropdownMenuTrigger>
+           <DropdownMenuContent align="end" className="bg-white border border-slate-200 shadow-lg">
+             <DropdownMenuItem onClick={() => navigate('/patients')} className="hover:bg-slate-50">
+               <Users className="h-4 w-4 mr-2 text-slate-600" />
+               Pacientes
+             </DropdownMenuItem>
+             <DropdownMenuItem onClick={() => signOut()} className="text-red-600 hover:bg-red-50">
+               <LogOut className="h-4 w-4 mr-2" />
+               Sair
+             </DropdownMenuItem>
+           </DropdownMenuContent>
+         </DropdownMenu>
+       </header>
+ 
+       {/* Main Content */}
+       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
+         <div className="w-full max-w-lg space-y-10">
+           {/* Greeting */}
+           <div className="text-center space-y-2">
+             <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
+               {profile?.full_name ? `Olá, ${profile.full_name.split(' ')[0]}` : 'Bem-vindo'}
+             </h1>
+             <p className="text-slate-500">Área do Secretário</p>
+           </div>
+ 
+           {/* Main Actions - 2 columns for secretary */}
+           <div className="grid gap-4 grid-cols-2">
+             <button
+               onClick={() => setIsNewPatientOpen(true)}
+               className="group flex flex-col items-center justify-center gap-3 h-32 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200"
+             >
+               <Plus className="h-8 w-8" />
+               <span className="text-sm font-semibold">Novo Paciente</span>
+             </button>
+ 
+             <button
+               onClick={() => navigate('/patients')}
+               className="group flex flex-col items-center justify-center gap-3 h-32 bg-white hover:bg-slate-50 text-slate-700 rounded-2xl border-2 border-slate-200 hover:border-slate-300 shadow-sm hover:shadow-md transition-all duration-200"
+             >
+               <Users className="h-8 w-8" />
+               <span className="text-sm font-semibold">Ver Pacientes</span>
+             </button>
+           </div>
+ 
+           {/* Quick Stats */}
+           {!isLoading && (
+             <Card className="p-4 bg-white border-slate-200">
+               <div className="text-center">
+                 <p className="text-3xl font-bold text-blue-600">{patients?.length || 0}</p>
+                 <p className="text-sm text-slate-500">Pacientes Cadastrados</p>
+               </div>
+             </Card>
+           )}
+ 
+           {/* Info Card */}
+           <Card className="p-4 bg-slate-50 border-slate-200">
+             <div className="flex items-start gap-3">
+               <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                 <Users className="h-4 w-4 text-blue-600" />
+               </div>
+               <div>
+                 <p className="text-sm font-medium text-slate-700">Área de Secretário</p>
+                 <p className="text-xs text-slate-500 mt-0.5">
+                   Você tem acesso ao cadastro de pacientes. Dados clínicos são exclusivos do profissional.
+                 </p>
+               </div>
+             </div>
+           </Card>
+         </div>
+       </div>
+ 
+       {/* New Patient Dialog */}
+       <PatientFormDialog
+         open={isNewPatientOpen}
+         onOpenChange={setIsNewPatientOpen}
+         onSuccess={() => loadPatients()}
+       />
+     </div>
+   );
+ }
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { profile, loading: authLoading, signOut, clinicId } = useAuth();
+   const permissions = usePermissions();
   const [isSelectPatientOpen, setIsSelectPatientOpen] = useState(false);
   const [isNewPatientOpen, setIsNewPatientOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<LocalPatient | null>(null);
@@ -65,6 +196,11 @@ export default function DashboardPage() {
   useEffect(() => {
     loadPatients();
   }, [loadPatients]);
+ 
+   // Show secretary dashboard if user doesn't have session permissions
+   if (!authLoading && !permissions.canViewSessions) {
+     return <SecretaryDashboard />;
+   }
 
   // Load sessions when patient is selected
   useEffect(() => {

@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Search, Plus, UserCircle, Shield, ShieldAlert } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+ import { usePermissions } from '@/hooks/usePermissions';
 
 export default function PatientsPage() {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ export default function PatientsPage() {
   const { clinicId } = useAuth();
   const { privacyMode, usbStatus } = usePrivacyMode();
   const { toast } = useToast();
+   const permissions = usePermissions();
 
   // Local data states
   const [patients, setPatients] = useState<LocalPatient[]>([]);
@@ -138,8 +140,7 @@ export default function PatientsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>ID Público</TableHead>
-              {showNames && <TableHead>Nome</TableHead>}
+               <TableHead>{showNames ? 'Nome' : 'ID Público'}</TableHead>
               <TableHead>Gênero</TableHead>
               <TableHead>Data de Nascimento</TableHead>
               <TableHead>Cadastrado em</TableHead>
@@ -150,8 +151,7 @@ export default function PatientsPage() {
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                  {showNames && <TableCell><Skeleton className="h-4 w-48" /></TableCell>}
+                   <TableCell><Skeleton className="h-4 w-48" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-24" /></TableCell>
@@ -161,17 +161,16 @@ export default function PatientsPage() {
             ) : filteredPatients && filteredPatients.length > 0 ? (
               filteredPatients.map((patient) => (
                 <TableRow key={patient.id}>
-                  <TableCell className="font-mono font-medium">
-                    {patient.public_id}
+                   <TableCell className={showNames ? 'font-medium' : 'font-mono font-medium'}>
+                     {showNames ? (
+                       <div className="flex items-center gap-2">
+                         <UserCircle className="h-4 w-4 text-muted-foreground" />
+                         <span>{patient.full_name || patient.public_id}</span>
+                       </div>
+                     ) : (
+                       patient.public_id
+                     )}
                   </TableCell>
-                  {showNames && (
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <UserCircle className="h-4 w-4 text-muted-foreground" />
-                        <span>{patient.full_name || '—'}</span>
-                      </div>
-                    </TableCell>
-                  )}
                   <TableCell>
                     <Badge variant="outline">{patient.gender}</Badge>
                   </TableCell>
@@ -197,7 +196,7 @@ export default function PatientsPage() {
             ) : (
               <TableRow>
                 <TableCell 
-                  colSpan={showNames ? 6 : 5} 
+                   colSpan={5} 
                   className="text-center py-12 text-muted-foreground"
                 >
                   {searchQuery ? 'Nenhum paciente encontrado' : 'Nenhum paciente cadastrado'}
