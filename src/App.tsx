@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { SecurityProvider } from "@/hooks/usePrivacyMode";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+ import { ProtectedRouteWithPermission } from "@/components/ProtectedRouteWithPermission";
 import { AppShell } from "@/components/layout/AppShell";
 
 // Auth Pages
@@ -68,81 +69,81 @@ function AppRoutes() {
       <Route
         path="/patients/:id"
         element={
-          <ProtectedRoute>
+           <ProtectedRouteWithPermission requiredPermission="canViewSessions" redirectTo="/patients">
             <AppShell>
               <PatientDetailsPage />
             </AppShell>
-          </ProtectedRoute>
+           </ProtectedRouteWithPermission>
         }
       />
       <Route
         path="/sessions"
         element={
-          <ProtectedRoute>
+           <ProtectedRouteWithPermission requiredPermission="canViewSessions" redirectTo="/dashboard">
             <AppShell>
               <SessionsPage />
             </AppShell>
-          </ProtectedRoute>
+           </ProtectedRouteWithPermission>
         }
       />
       <Route
         path="/sessions/:id"
         element={
-          <ProtectedRoute>
+           <ProtectedRouteWithPermission requiredPermission="canViewSessions" redirectTo="/dashboard">
             <AppShell>
               <SessionDetailPage />
             </AppShell>
-          </ProtectedRoute>
+           </ProtectedRouteWithPermission>
         }
       />
       <Route
         path="/new-session/:patientId"
         element={
-          <ProtectedRoute>
+           <ProtectedRouteWithPermission requiredPermission="canCreateSessions" redirectTo="/dashboard">
             <AppShell>
               <NewSessionPage />
             </AppShell>
-          </ProtectedRoute>
+           </ProtectedRouteWithPermission>
         }
       />
       <Route
         path="/calendar"
         element={
-          <ProtectedRoute>
+           <ProtectedRouteWithPermission requiredPermission="canViewSessions" redirectTo="/dashboard">
             <AppShell>
               <CalendarPage />
             </AppShell>
-          </ProtectedRoute>
+           </ProtectedRouteWithPermission>
         }
       />
       <Route
         path="/ai-assistant"
         element={
-          <ProtectedRoute>
+           <ProtectedRouteWithPermission requiredPermission="canUseAI" redirectTo="/dashboard">
             <AppShell>
               <AIAssistantPage />
             </AppShell>
-          </ProtectedRoute>
+           </ProtectedRouteWithPermission>
         }
       />
       <Route
         path="/settings"
         element={
-          <ProtectedRoute>
+           <ProtectedRouteWithPermission requiredPermission="canAccessSettings" redirectTo="/dashboard">
             <AppShell>
               <SettingsPage />
             </AppShell>
-          </ProtectedRoute>
+           </ProtectedRouteWithPermission>
         }
       />
       <Route
         path="/reports"
         element={
-          <ProtectedRoute>
+           <ProtectedRouteWithPermission requiredPermission="canUseAI" redirectTo="/dashboard">
             <AppShell>
               <ReportsPage />
             </AppShell>
-          </ProtectedRoute>
+           </ProtectedRouteWithPermission>
         }
       />
 
