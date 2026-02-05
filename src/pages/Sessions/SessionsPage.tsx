@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Calendar, FileText, Plus, User, Pencil, Filter, X, Trash2, Eye, Download, Loader2, Search } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { SessionFormDialog } from '@/components/sessions/SessionFormDialog';
 import { SessionEditDialog } from '@/components/sessions/SessionEditDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -309,6 +310,17 @@ export default function SessionsPage() {
     <div className="container mx-auto py-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
+          <div className="flex items-center gap-3 mb-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/dashboard')}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Voltar
+            </Button>
+          </div>
           <h1 className="text-3xl font-bold tracking-tight">Sessões Clínicas</h1>
           <p className="text-muted-foreground mt-1">
             Registro e acompanhamento de atendimentos
