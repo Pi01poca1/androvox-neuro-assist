@@ -6,8 +6,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { SecurityProvider } from "@/hooks/usePrivacyMode";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
- import { ProtectedRouteWithPermission } from "@/components/ProtectedRouteWithPermission";
-import { AppShell } from "@/components/layout/AppShell";
+import { ProtectedRouteWithPermission } from "@/components/ProtectedRouteWithPermission";
+import { UnifiedLayout } from "@/components/layout/UnifiedLayout";
 
 // Auth Pages
 import LoginPage from "./pages/Auth/LoginPage";
@@ -22,6 +22,7 @@ import SessionsPage from "./pages/Sessions/SessionsPage";
 import SessionDetailPage from "./pages/Sessions/SessionDetailPage";
 import NewSessionPage from "./pages/Sessions/NewSessionPage";
 import CalendarPage from "./pages/Calendar/CalendarPage";
+import SecretaryCalendarPage from "./pages/Calendar/SecretaryCalendarPage";
 import SettingsPage from "./pages/Settings/SettingsPage";
 import AIAssistantPage from "./pages/AI/AIAssistantPage";
 import ReportsPage from "./pages/Reports/ReportsPage";
@@ -37,6 +38,19 @@ function RootRedirect() {
   return <Navigate to={user ? "/dashboard" : "/auth/login"} replace />;
 }
 
+// Calendar route - shows different page based on role
+function CalendarRouteContent() {
+  const { userRole } = useAuth();
+  
+  // Secretary gets simplified calendar (no clinical data)
+  if (userRole === 'secretario') {
+    return <SecretaryCalendarPage />;
+  }
+  
+  // Professional gets full calendar
+  return <CalendarPage />;
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -45,7 +59,7 @@ function AppRoutes() {
       <Route path="/auth/register" element={<RegisterPage />} />
       <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
 
-      {/* Protected routes */}
+      {/* Protected routes - Dashboard uses its own layout */}
       <Route
         path="/dashboard"
         element={
@@ -55,95 +69,105 @@ function AppRoutes() {
         }
       />
 
-      {/* Patient routes */}
+      {/* Patient routes - using UnifiedLayout */}
       <Route
         path="/patients"
         element={
           <ProtectedRoute>
-            <AppShell>
+            <UnifiedLayout>
               <PatientsPage />
-            </AppShell>
+            </UnifiedLayout>
           </ProtectedRoute>
         }
       />
       <Route
         path="/patients/:id"
         element={
-           <ProtectedRouteWithPermission requiredPermission="canViewSessions" redirectTo="/patients">
-            <AppShell>
+          <ProtectedRouteWithPermission requiredPermission="canViewSessions" redirectTo="/patients">
+            <UnifiedLayout>
               <PatientDetailsPage />
-            </AppShell>
-           </ProtectedRouteWithPermission>
+            </UnifiedLayout>
+          </ProtectedRouteWithPermission>
         }
       />
+      
+      {/* Calendar - accessible by both roles but with different content */}
+      <Route
+        path="/calendar"
+        element={
+          <ProtectedRouteWithPermission requiredPermission="canManageSchedule" redirectTo="/dashboard">
+            <UnifiedLayout>
+              <CalendarRouteContent />
+            </UnifiedLayout>
+          </ProtectedRouteWithPermission>
+        }
+      />
+      
+      {/* Sessions - only for professionals */}
       <Route
         path="/sessions"
         element={
-           <ProtectedRouteWithPermission requiredPermission="canViewSessions" redirectTo="/dashboard">
-            <AppShell>
+          <ProtectedRouteWithPermission requiredPermission="canViewSessions" redirectTo="/dashboard">
+            <UnifiedLayout>
               <SessionsPage />
-            </AppShell>
-           </ProtectedRouteWithPermission>
+            </UnifiedLayout>
+          </ProtectedRouteWithPermission>
         }
       />
       <Route
         path="/sessions/:id"
         element={
-           <ProtectedRouteWithPermission requiredPermission="canViewSessions" redirectTo="/dashboard">
-            <AppShell>
+          <ProtectedRouteWithPermission requiredPermission="canViewSessions" redirectTo="/dashboard">
+            <UnifiedLayout>
               <SessionDetailPage />
-            </AppShell>
-           </ProtectedRouteWithPermission>
+            </UnifiedLayout>
+          </ProtectedRouteWithPermission>
         }
       />
       <Route
         path="/new-session/:patientId"
         element={
-           <ProtectedRouteWithPermission requiredPermission="canCreateSessions" redirectTo="/dashboard">
-            <AppShell>
+          <ProtectedRouteWithPermission requiredPermission="canCreateSessions" redirectTo="/dashboard">
+            <UnifiedLayout>
               <NewSessionPage />
-            </AppShell>
-           </ProtectedRouteWithPermission>
+            </UnifiedLayout>
+          </ProtectedRouteWithPermission>
         }
       />
-      <Route
-        path="/calendar"
-        element={
-           <ProtectedRouteWithPermission requiredPermission="canViewSessions" redirectTo="/dashboard">
-            <AppShell>
-              <CalendarPage />
-            </AppShell>
-           </ProtectedRouteWithPermission>
-        }
-      />
+      
+      {/* AI Assistant - only for professionals */}
       <Route
         path="/ai-assistant"
         element={
-           <ProtectedRouteWithPermission requiredPermission="canUseAI" redirectTo="/dashboard">
-            <AppShell>
+          <ProtectedRouteWithPermission requiredPermission="canUseAI" redirectTo="/dashboard">
+            <UnifiedLayout>
               <AIAssistantPage />
-            </AppShell>
-           </ProtectedRouteWithPermission>
+            </UnifiedLayout>
+          </ProtectedRouteWithPermission>
         }
       />
+      
+      {/* Settings - only for professionals */}
       <Route
         path="/settings"
         element={
-           <ProtectedRouteWithPermission requiredPermission="canAccessSettings" redirectTo="/dashboard">
-            <AppShell>
+          <ProtectedRouteWithPermission requiredPermission="canAccessSettings" redirectTo="/dashboard">
+            <UnifiedLayout>
               <SettingsPage />
-            </AppShell>
-           </ProtectedRouteWithPermission>
+            </UnifiedLayout>
+          </ProtectedRouteWithPermission>
         }
       />
+      
+      {/* Reports - only for professionals */}
       <Route
         path="/reports"
         element={
-           <ProtectedRouteWithPermission requiredPermission="canUseAI" redirectTo="/dashboard">
-            <AppShell>
+          <ProtectedRouteWithPermission requiredPermission="canUseAI" redirectTo="/dashboard">
+            <UnifiedLayout>
               <ReportsPage />
-            </AppShell>
-           </ProtectedRouteWithPermission>
+            </UnifiedLayout>
+          </ProtectedRouteWithPermission>
         }
       />
 

@@ -19,10 +19,11 @@ export function usePermissions(): Permission {
         canUseAI: true,
         canViewAILogs: true,
         canAccessSettings: true,
+        canManageSchedule: true,
       };
     }
 
-    // Secretário - apenas agenda e cadastro
+    // Secretário - cadastro de pacientes + gestão de agenda (sem dados clínicos)
     return {
       canViewSessions: false,
       canCreateSessions: false,
@@ -35,6 +36,7 @@ export function usePermissions(): Permission {
       canUseAI: false,
       canViewAILogs: false,
       canAccessSettings: false,
+      canManageSchedule: true, // Secretário pode gerenciar agenda
     };
   }, [userRole]);
 }

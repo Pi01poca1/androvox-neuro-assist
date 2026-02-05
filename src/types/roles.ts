@@ -19,4 +19,5 @@ export interface Permission {
   canUseAI: boolean;
   canViewAILogs: boolean;
   canAccessSettings: boolean;
+  canManageSchedule: boolean;
 }
