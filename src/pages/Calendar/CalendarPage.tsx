@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { 
   getSessionsByClinic, 
@@ -13,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { SessionFormDialog } from '@/components/sessions/SessionFormDialog';
 import { SessionEditDialog } from '@/components/sessions/SessionEditDialog';
 import { ChevronLeft, ChevronRight, Plus, Clock } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -22,6 +24,7 @@ interface SessionWithPatient extends LocalSession {
 }
 
 export default function CalendarPage() {
+  const navigate = useNavigate();
   const { clinicId } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -156,6 +159,17 @@ export default function CalendarPage() {
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
+          <div className="flex items-center gap-3 mb-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/dashboard')}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Voltar
+            </Button>
+          </div>
           <h1 className="text-3xl font-bold text-foreground">Calendário de Sessões</h1>
           <p className="text-muted-foreground">Visualize e gerencie sessões agendadas</p>
         </div>
