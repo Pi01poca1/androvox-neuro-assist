@@ -38,19 +38,19 @@ export function DynamicClinicHeader({ clinicId, className = '' }: DynamicClinicH
   }, [clinicId]);
 
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
+    <div className={`flex items-center gap-4 ${className}`}>
       {clinic?.logo_data ? (
         <img 
           src={clinic.logo_data} 
           alt="Logo" 
-          className="w-8 h-8 object-contain rounded-lg border bg-background"
+          className="w-16 h-16 object-contain rounded-xl border bg-background"
         />
       ) : (
-        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-          <Brain className="h-5 w-5 text-primary-foreground" />
+        <div className="w-16 h-16 rounded-xl bg-primary flex items-center justify-center">
+          <Brain className="h-10 w-10 text-primary-foreground" />
         </div>
       )}
-      <span className="font-semibold text-foreground">{clinic?.name || 'Androvox'}</span>
+      <span className="text-2xl font-semibold text-foreground">{clinic?.name || 'Androvox'}</span>
     </div>
   );
 }
