@@ -26,6 +26,7 @@ import SecretaryCalendarPage from "./pages/Calendar/SecretaryCalendarPage";
 import SettingsPage from "./pages/Settings/SettingsPage";
 import AIAssistantPage from "./pages/AI/AIAssistantPage";
 import ReportsPage from "./pages/Reports/ReportsPage";
+ import InstallPage from "./pages/Install/InstallPage";
 import NotFound from "./pages/NotFound";
 
 // Create QueryClient outside component to ensure stability
@@ -171,6 +172,9 @@ function AppRoutes() {
         }
       />
 
+       {/* Install PWA - public route */}
+       <Route path="/install" element={<InstallPage />} />
+ 
       {/* Redirects */}
       <Route path="/" element={<RootRedirect />} />
       <Route path="*" element={<NotFound />} />

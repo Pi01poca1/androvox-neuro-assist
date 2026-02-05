@@ -80,10 +80,12 @@ export default defineConfig(({ mode }) => ({
         ]
       },
       devOptions: {
-        // Avoid Service Worker caching issues during development/preview
-        enabled: false,
-      }
-    })
+         enabled: false
+       },
+       selfDestroying: false,
+       injectRegister: 'auto',
+       strategies: 'generateSW'
+     })
   ].filter(Boolean),
   resolve: {
     alias: {
