@@ -999,6 +999,33 @@ export default function DashboardPage() {
             </button>
           </div>
 
+          {/* Secondary Actions - smaller buttons */}
+          <div className="grid gap-3 grid-cols-3">
+            <button
+              onClick={() => navigate('/patients')}
+              className="group flex items-center justify-center gap-2 h-12 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-all duration-200"
+            >
+              <Users className="h-4 w-4" />
+              <span className="text-sm font-medium">Pacientes</span>
+            </button>
+
+            <button
+              onClick={() => navigate('/sessions')}
+              className="group flex items-center justify-center gap-2 h-12 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-all duration-200"
+            >
+              <FileText className="h-4 w-4" />
+              <span className="text-sm font-medium">Sessões</span>
+            </button>
+
+            <button
+              onClick={() => navigate('/calendar')}
+              className="group flex items-center justify-center gap-2 h-12 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-all duration-200"
+            >
+              <Calendar className="h-4 w-4" />
+              <span className="text-sm font-medium">Calendário</span>
+            </button>
+          </div>
+
           {/* Quick Stats */}
           {!dataLoading && (
             <div className="grid grid-cols-2 gap-4">
