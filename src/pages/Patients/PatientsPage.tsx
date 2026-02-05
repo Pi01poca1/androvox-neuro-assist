@@ -140,7 +140,7 @@ export default function PatientsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-               <TableHead>{showNames ? 'Nome' : 'ID Público'}</TableHead>
+               <TableHead>Nome</TableHead>
               <TableHead>Gênero</TableHead>
               <TableHead>Data de Nascimento</TableHead>
               <TableHead>Cadastrado em</TableHead>
@@ -161,15 +161,11 @@ export default function PatientsPage() {
             ) : filteredPatients && filteredPatients.length > 0 ? (
               filteredPatients.map((patient) => (
                 <TableRow key={patient.id}>
-                   <TableCell className={showNames ? 'font-medium' : 'font-mono font-medium'}>
-                     {showNames ? (
-                       <div className="flex items-center gap-2">
-                         <UserCircle className="h-4 w-4 text-muted-foreground" />
-                         <span>{patient.full_name || patient.public_id}</span>
-                       </div>
-                     ) : (
-                       patient.public_id
-                     )}
+                   <TableCell className="font-medium">
+                     <div className="flex items-center gap-2">
+                       <UserCircle className="h-4 w-4 text-muted-foreground" />
+                       <span>{patient.full_name || 'Sem nome'}</span>
+                     </div>
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">{patient.gender}</Badge>

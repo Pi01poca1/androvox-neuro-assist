@@ -121,17 +121,11 @@ export default function PatientDetailsPage() {
           <div className="space-y-1">
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold tracking-tight">
-                {showNames && patient.full_name ? patient.full_name : patient.public_id}
+                  {patient.full_name || 'Paciente sem nome'}
               </h1>
-              {!showNames && patient.full_name && (
-                <Badge variant="secondary">
-                  <Shield className="h-3 w-3 mr-1" />
-                  Nome Oculto
-                </Badge>
-              )}
             </div>
             <p className="text-muted-foreground">
-              ID: {patient.public_id} • Cadastrado em{' '}
+                  Cadastrado em{' '}
               {new Date(patient.created_at).toLocaleDateString('pt-BR')}
             </p>
           </div>
@@ -189,17 +183,10 @@ export default function PatientDetailsPage() {
                 <CardDescription>Informações básicas do paciente</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-muted-foreground">ID Público</p>
-                  <p className="font-mono">{patient.public_id}</p>
-                </div>
-
-                {showNames && patient.full_name && (
                   <div className="space-y-1">
                     <p className="text-sm font-medium text-muted-foreground">Nome Completo</p>
-                    <p>{patient.full_name}</p>
+                  <p>{patient.full_name || 'Não informado'}</p>
                   </div>
-                )}
 
                 <Separator />
 
